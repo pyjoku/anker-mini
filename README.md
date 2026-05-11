@@ -109,9 +109,11 @@ deterministisch daraus generiert. Bei Setup-Verlust:
 
 ## Plattform
 
-- **macOS:** voll unterstuetzt (launchd).
-- **Linux/Windows:** Bot laeuft, aber `/schedule` und `/unschedule` fehlt
-  System-Layer (cron / Task Scheduler). Hinzufuegen waere mechanisch — Backlog.
+- **macOS:** voll unterstuetzt — Schedules werden als `~/Library/LaunchAgents/com.anker.skill-*.plist` installiert und ueber `launchctl bootstrap` aktiviert.
+- **Linux:** unterstuetzt — Schedules landen als Eintrag im User-`crontab` mit Marker `# ANKER_MINI[<id>]` zur eindeutigen Wiedererkennung.
+- **Windows:** Bot laeuft, aber Scheduler-Backend fehlt noch (Task Scheduler-Integration als Backlog).
+
+Backend-Dispatch via `platform.system()` in `code/scheduler.py`.
 
 ## Sicherheit
 

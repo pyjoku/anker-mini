@@ -27,8 +27,11 @@ Initial release. Built during one focused morning session (06:44–11:00).
 - **Tests** (`tests/test_smoke.py`) — 17 unittest cases covering parser, plist gen (round-trips through `plistlib`), frontmatter (incl. literal blocks), and discovery.
 - **Docs:** `README.md`, `DEMO.md` (5-min walkthrough for demos), `LICENSE` (MIT).
 
+### Added (continued)
+- **Linux scheduling backend** — `crontab` based, auto-dispatched via `platform.system()`. macOS keeps using launchd. Cron line: `MM HH * * <DAYS> cd <cwd> && claude -p '<prompt>' >> <log> 2>&1  # ANKER_MINI[<id>]`. ISO weekday 7 (Sun) gets remapped to cron 0.
+
 ### Not yet
-- Linux/Windows scheduling backends (Backlog).
+- Windows Task Scheduler backend (Backlog).
 - Frontmatter-driven `schedule:` field (auto-register schedules from skill files).
 - Obsidian-CLI vault writes from within skills (recommended pattern, not enforced).
 - Pre-Planner / Daily-Brief as built-in commands (kept external as skills).

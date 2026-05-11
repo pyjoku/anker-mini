@@ -121,6 +121,58 @@ class TestPlistGeneration(unittest.TestCase):
         self.assertEqual(parsed["ProgramArguments"][2], original)
 
 
+class TestCronLineGeneration(unittest.TestCase):
+    def test_daily_cron_line(self):
+        s = scheduler.Schedule(
+            id="abc12345abcdefabcdefabcdefabcdef",
+            skill_id="daily-brief",
+            prompt="run my daily brief",
+            hour=5,
+            minute=55,
+        )
+        line = s.to_cron_line()
+        self.assertTrue(line.startswith("55 5 * * * "))
+        self.assertIn("-p", line)
+        self.assertIn("run my daily brief", line)
+        self.assertIn("# ANKER_MINI[abc12345", line)
+
+    def test_weekdays_mo_fr(self):
+        s = scheduler.Schedule(
+            id="x" * 32,
+            skill_id="x",
+            prompt="x",
+            hour=7,
+            minute=30,
+            weekdays=[1, 2, 3, 4, 5],
+        )
+        line = s.to_cron_line()
+        # Cron: 1,2,3,4,5 (Mon-Fri), no remapping needed
+        self.assertIn("* * 1,2,3,4,5 ", line)
+
+    def test_weekend_sunday_remap(self):
+        """ISO weekday 7 (Sunday) must remap to cron 0."""
+        s = scheduler.Schedule(
+            id="x" * 32, skill_id="x", prompt="x", hour=9, minute=0, weekdays=[6, 7]
+        )
+        line = s.to_cron_line()
+        # 6 (Sat) stays 6, 7 (Sun) becomes 0
+        self.assertIn("* * 0,6 ", line)
+
+    def test_shell_quoting_in_prompt(self):
+        """Prompt with shell metacharacters must be shell-quoted."""
+        s = scheduler.Schedule(
+            id="x" * 32,
+            skill_id="x",
+            prompt="run with $VAR and `cmd` and 'quote' problems",
+            hour=9,
+            minute=0,
+        )
+        line = s.to_cron_line()
+        # shlex.quote wraps in single quotes and escapes embedded ones
+        self.assertIn("$VAR", line)  # not expanded
+        self.assertIn("`cmd`", line)
+
+
 class TestSkillFrontmatter(unittest.TestCase):
     def test_parses_triggers_and_description(self):
         with TemporaryDirectory() as tmp:

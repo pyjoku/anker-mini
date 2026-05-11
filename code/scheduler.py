@@ -1,19 +1,27 @@
-"""launchd-based scheduling for skills.
+"""Cross-platform scheduling for skills.
 
 A scheduled job:
   - id: stable identifier (uuid)
   - skill_id: which skill to invoke
   - prompt: the prompt passed to `claude -p` (defaults to skill's first trigger)
   - hour, minute: local time of day
-  - weekdays: list of launchd weekday ints (1=Mon ... 7=Sun); empty = every day
+  - weekdays: list of weekday ints (1=Mon ... 7=Sun, ISO format); empty = every day
   - created_at: ISO timestamp
 
-State lives in data/schedules.json. The plist is generated deterministically
-from this state — schedules.json is the source of truth.
+State lives in data/schedules.json. The backend artefact (plist on macOS,
+crontab entry on Linux) is generated deterministically from this state —
+schedules.json is the source of truth.
+
+Backend dispatch by `platform.system()`:
+  - "Darwin"  → launchd plist + launchctl bootstrap/bootout
+  - "Linux"   → crontab entry via `crontab -l` / `crontab -`
+  - other     → NotImplementedError
 """
 from __future__ import annotations
 
 import json
+import platform
+import shlex
 import subprocess
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -24,6 +32,7 @@ from . import config
 
 LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
 LABEL_PREFIX = "com.anker.skill-"
+CRON_MARKER = "ANKER_MINI"
 
 PLIST_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -80,6 +89,27 @@ class Schedule:
     @property
     def plist_path(self) -> Path:
         return LAUNCH_AGENTS_DIR / f"{self.label}.plist"
+
+    def to_cron_line(self) -> str:
+        """Generate a crontab line. ISO weekdays (1-7, Mon=1, Sun=7) get
+        translated to cron weekdays (0-6, Sun=0, Mon=1). The line carries a
+        trailing comment marker `# ANKER_MINI[<id>]` so we can find/remove it."""
+        # Cron uses 0=Sunday, 1=Monday, ..., 6=Saturday.
+        if self.weekdays:
+            cron_days = sorted({0 if w == 7 else w for w in self.weekdays})
+            days_field = ",".join(str(d) for d in cron_days)
+        else:
+            days_field = "*"
+        log_path = config.log_dir() / f"{self.skill_id}.log"
+        # Build the command — shlex.quote handles embedded quotes / shell metachars.
+        command = (
+            f"cd {shlex.quote(str(config.claude_cwd()))} && "
+            f"{shlex.quote(config.claude_bin())} -p {shlex.quote(self.prompt)} "
+            f">> {shlex.quote(str(log_path))} 2>&1"
+        )
+        return (
+            f"{self.minute} {self.hour} * * {days_field} {command}  # {CRON_MARKER}[{self.id}]"
+        )
 
     def next_run_at(self, now: datetime | None = None) -> datetime:
         """Compute the next time this schedule will fire (local time)."""
@@ -175,7 +205,7 @@ def add_schedule(
     state = _load_state()
     state.append(schedule)
     _save_state(state)
-    _install_plist(schedule)
+    _install(schedule)
     return schedule
 
 
@@ -184,22 +214,46 @@ def remove_schedule(schedule_id: str) -> Schedule | None:
     sched = next((s for s in state if s.id == schedule_id or s.id.startswith(schedule_id)), None)
     if sched is None:
         return None
-    _uninstall_plist(sched)
+    _uninstall(sched)
     state = [s for s in state if s.id != sched.id]
     _save_state(state)
     return sched
 
 
 def reinstall_all() -> None:
-    """Re-write + reload all plists from schedules.json. For recovery / migration."""
+    """Re-write + reload all backend artefacts from schedules.json. For recovery / migration."""
     for s in _load_state():
-        _install_plist(s)
+        _install(s)
 
+
+def _install(s: Schedule) -> None:
+    """Backend-dispatched install."""
+    system = platform.system()
+    if system == "Darwin":
+        _install_plist(s)
+    elif system == "Linux":
+        _install_cron(s)
+    else:
+        raise NotImplementedError(
+            f"Scheduling auf {system} ist nicht unterstuetzt. Aktuell: Darwin (macOS) + Linux."
+        )
+
+
+def _uninstall(s: Schedule) -> None:
+    system = platform.system()
+    if system == "Darwin":
+        _uninstall_plist(s)
+    elif system == "Linux":
+        _uninstall_cron(s)
+    else:
+        raise NotImplementedError(f"Scheduling auf {system} nicht unterstuetzt.")
+
+
+# --- macOS (launchd) ---
 
 def _install_plist(s: Schedule) -> None:
     LAUNCH_AGENTS_DIR.mkdir(parents=True, exist_ok=True)
     s.plist_path.write_text(s.to_plist(), encoding="utf-8")
-    # bootout if already loaded (ignore errors), then bootstrap
     uid = _gui_uid()
     subprocess.run(
         ["launchctl", "bootout", f"gui/{uid}", str(s.plist_path)],
@@ -227,6 +281,42 @@ def _uninstall_plist(s: Schedule) -> None:
 def _gui_uid() -> int:
     import os
     return os.getuid()
+
+
+# --- Linux (crontab) ---
+
+def _read_crontab() -> list[str]:
+    """Read user crontab. Returns list of lines. Empty list if crontab has no jobs."""
+    proc = subprocess.run(
+        ["crontab", "-l"], capture_output=True, text=True, check=False
+    )
+    # `crontab -l` exits 1 when no crontab — treat as empty.
+    if proc.returncode != 0:
+        return []
+    return proc.stdout.splitlines()
+
+
+def _write_crontab(lines: list[str]) -> None:
+    body = "\n".join(lines) + ("\n" if lines else "")
+    proc = subprocess.run(["crontab", "-"], input=body, text=True, capture_output=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"crontab -: {proc.stderr.strip()}")
+
+
+def _install_cron(s: Schedule) -> None:
+    existing = _read_crontab()
+    # Remove any old line for this schedule id (re-install pattern)
+    marker = f"# {CRON_MARKER}[{s.id}]"
+    filtered = [line for line in existing if marker not in line]
+    filtered.append(s.to_cron_line())
+    _write_crontab(filtered)
+
+
+def _uninstall_cron(s: Schedule) -> None:
+    existing = _read_crontab()
+    marker = f"# {CRON_MARKER}[{s.id}]"
+    filtered = [line for line in existing if marker not in line]
+    _write_crontab(filtered)
 
 
 # Convenience: parse human-friendly schedule strings like "07:30 mo-fr" or "05:55 daily"
