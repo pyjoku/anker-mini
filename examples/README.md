@@ -6,6 +6,7 @@ Vault-Skills-Ordner kopieren kannst.
 | File | Zweck | Aktivierung |
 |---|---|---|
 | `daily-brief.md` | Morgendlicher Tagesbrief mit Kalender + Mails | `/schedule daily-brief 05:55 mo-fr` |
+| `weekly-review.md` | Sonntag-Abend Wochenrueckblick aus Daily Notes | `/schedule weekly-review 18:00 so` |
 
 ## Installation
 

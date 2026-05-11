@@ -116,6 +116,96 @@ def _reinstall(_args) -> int:
     return 0
 
 
+def _verify_env(_args) -> int:
+    """Sanity-check the configured environment and report each finding."""
+    import platform
+    import shutil
+    findings: list[tuple[str, str]] = []  # (status, message), status is OK/WARN/FAIL
+
+    # ENV
+    token = config.get("TELEGRAM_BOT_TOKEN", "")
+    findings.append(("OK" if token else "FAIL", f"TELEGRAM_BOT_TOKEN: {'set' if token else 'MISSING'}"))
+
+    allowed = config.allowed_user_ids()
+    findings.append((
+        "OK" if allowed else "WARN",
+        f"TELEGRAM_ALLOWED_USERS: {len(allowed)} user(s)" + ("" if allowed else " — bot offen fuer alle"),
+    ))
+
+    # Skill paths
+    paths = config.skill_paths()
+    if not paths:
+        findings.append(("FAIL", "SKILL_PATHS: keine Pfade konfiguriert"))
+    else:
+        for p in paths:
+            findings.append((
+                "OK" if p.exists() else "WARN",
+                f"SKILL_PATHS entry: {p} ({'existiert' if p.exists() else 'fehlt'})",
+            ))
+
+    # Skills found
+    skills = skill_runner.discover_skills()
+    findings.append((
+        "OK" if skills else "WARN",
+        f"Gefundene Skills: {len(skills)}",
+    ))
+
+    # claude CLI present
+    claude_path = shutil.which(config.claude_bin())
+    findings.append((
+        "OK" if claude_path else "FAIL",
+        f"claude CLI: {claude_path or 'NICHT GEFUNDEN — pruefe CLAUDE_BIN'}",
+    ))
+
+    # CLAUDE_CWD existiert?
+    cwd = config.claude_cwd()
+    findings.append((
+        "OK" if cwd.exists() else "FAIL",
+        f"CLAUDE_CWD: {cwd} ({'existiert' if cwd.exists() else 'FEHLT'})",
+    ))
+
+    # Platform support
+    system = platform.system()
+    if system == "Darwin":
+        findings.append(("OK", f"Plattform: {system} (launchd-Backend)"))
+        if not shutil.which("launchctl"):
+            findings.append(("FAIL", "launchctl: NICHT GEFUNDEN"))
+    elif system == "Linux":
+        findings.append(("OK", f"Plattform: {system} (cron-Backend)"))
+        if not shutil.which("crontab"):
+            findings.append(("FAIL", "crontab: NICHT GEFUNDEN"))
+    else:
+        findings.append(("WARN", f"Plattform: {system} (kein Scheduling-Backend, nur /run via CLI)"))
+
+    # Log dir writable?
+    log_dir = config.log_dir()
+    test_file = log_dir / ".write_test"
+    try:
+        test_file.write_text("ok", encoding="utf-8")
+        test_file.unlink()
+        findings.append(("OK", f"LOG_DIR schreibbar: {log_dir}"))
+    except OSError as e:
+        findings.append(("FAIL", f"LOG_DIR nicht schreibbar: {log_dir} — {e}"))
+
+    # Schedules state
+    state_file = config.schedules_file()
+    findings.append(("OK", f"Schedules-State: {state_file} ({'existiert' if state_file.exists() else 'wird beim ersten Schedule angelegt'})"))
+
+    # Output
+    sym = {"OK": "✓", "WARN": "!", "FAIL": "✗"}
+    fail_count = 0
+    for status, msg in findings:
+        print(f"  {sym[status]} {msg}")
+        if status == "FAIL":
+            fail_count += 1
+    print()
+    if fail_count:
+        print(f"❌ {fail_count} FAIL(s). Bitte korrigieren bevor du den Bot startest.")
+        return 1
+    print("✅ Setup ok.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     config.load_dotenv()
     parser = argparse.ArgumentParser(prog="anker-mini-cli", description="anker-mini local CLI")
@@ -145,6 +235,8 @@ def main(argv: list[str] | None = None) -> int:
     p_pre.set_defaults(func=_preview)
 
     sub.add_parser("reinstall", help="re-install all plists from schedules.json").set_defaults(func=_reinstall)
+
+    sub.add_parser("verify-env", help="sanity-check .env and runtime").set_defaults(func=_verify_env)
 
     args = parser.parse_args(argv)
     return args.func(args)
