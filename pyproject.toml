@@ -1,0 +1,18 @@
+[project]
+name = "anker-mini"
+version = "0.1.0"
+description = "Stripped-down Anker: Telegram bot that schedules and runs Markdown skills via claude -p, deployed as macOS LaunchAgents."
+requires-python = ">=3.11"
+dependencies = [
+    "python-telegram-bot[ext]>=21.0",
+]
+
+[project.scripts]
+anker-mini = "code.bot:main"
+
+[tool.uv]
+package = false
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["code*"]
