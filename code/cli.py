@@ -70,9 +70,11 @@ def _schedules(_args) -> int:
     if not items:
         print("(keine)")
         return 0
+    print(f"{'ID':<10}{'SKILL':<25}{'TIME':<8}{'DAYS':<14}NEXT-RUN")
     for s in items:
         days = "daily" if not s.weekdays else ",".join(str(w) for w in s.weekdays)
-        print(f"{s.id[:8]}  {s.skill_id:<25}  {s.hour:02d}:{s.minute:02d}  {days}")
+        next_run = s.next_run_at().strftime("%a %d.%m %H:%M")
+        print(f"{s.id[:8]:<10}{s.skill_id:<25}{s.hour:02d}:{s.minute:02d}   {days:<14}{next_run}")
     return 0
 
 

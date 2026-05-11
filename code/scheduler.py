@@ -81,6 +81,22 @@ class Schedule:
     def plist_path(self) -> Path:
         return LAUNCH_AGENTS_DIR / f"{self.label}.plist"
 
+    def next_run_at(self, now: datetime | None = None) -> datetime:
+        """Compute the next time this schedule will fire (local time)."""
+        from datetime import timedelta
+        now = now or datetime.now()
+        # launchd weekday: 1=Mon ... 7=Sun. Python isoweekday(): 1=Mon ... 7=Sun. Compatible.
+        candidates: list[datetime] = []
+        for day_offset in range(0, 8):  # next 8 days to cover wrap
+            d = now + timedelta(days=day_offset)
+            candidate = d.replace(hour=self.hour, minute=self.minute, second=0, microsecond=0)
+            if candidate <= now:
+                continue
+            if self.weekdays and candidate.isoweekday() not in self.weekdays:
+                continue
+            candidates.append(candidate)
+        return min(candidates) if candidates else now
+
     def to_plist(self) -> str:
         if self.weekdays:
             entries = "\n".join(

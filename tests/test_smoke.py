@@ -88,6 +88,28 @@ class TestPlistGeneration(unittest.TestCase):
         self.assertEqual(entry["Minute"], 55)
         self.assertEqual(entry["Weekday"], 1)
 
+    def test_next_run_daily(self):
+        from datetime import datetime
+        s = scheduler.Schedule(id="a" * 32, skill_id="x", prompt="x", hour=7, minute=0, weekdays=[])
+        # Reference: Monday 2026-05-11 06:00 — should fire same day 07:00
+        ref = datetime(2026, 5, 11, 6, 0)
+        nxt = s.next_run_at(now=ref)
+        self.assertEqual(nxt, datetime(2026, 5, 11, 7, 0))
+        # Reference: same day 08:00 — should fire next day 07:00
+        ref = datetime(2026, 5, 11, 8, 0)
+        nxt = s.next_run_at(now=ref)
+        self.assertEqual(nxt, datetime(2026, 5, 12, 7, 0))
+
+    def test_next_run_weekdays_only(self):
+        from datetime import datetime
+        s = scheduler.Schedule(
+            id="b" * 32, skill_id="x", prompt="x", hour=7, minute=0, weekdays=[1, 2, 3, 4, 5]
+        )
+        # Reference: Friday 2026-05-15 09:00 — next fire is Mon 2026-05-18 07:00
+        ref = datetime(2026, 5, 15, 9, 0)
+        nxt = s.next_run_at(now=ref)
+        self.assertEqual(nxt, datetime(2026, 5, 18, 7, 0))
+
     def test_plist_round_trips_with_escaped_prompt(self):
         """XML-escaped prompts must decode back to the original string."""
         import plistlib

@@ -150,7 +150,11 @@ async def cmd_schedules(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None
     lines = ["*Aktive Schedules:*"]
     for s in items:
         days = "daily" if not s.weekdays else ",".join(_wd_label(w) for w in s.weekdays)
-        lines.append(f"• `{s.id[:8]}` — {s.skill_id} @ {s.hour:02d}:{s.minute:02d} ({days})")
+        next_run = s.next_run_at().strftime("%a %d.%m %H:%M")
+        lines.append(
+            f"• `{s.id[:8]}` — {s.skill_id} @ {s.hour:02d}:{s.minute:02d} ({days})\n"
+            f"    naechster Lauf: {next_run}"
+        )
     await update.effective_message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
