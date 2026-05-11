@@ -76,6 +76,28 @@ class TestPlistGeneration(unittest.TestCase):
         self.assertIn("&lt;", plist)
         self.assertIn("&quot;", plist)
 
+    def test_plist_round_trips_through_plistlib(self):
+        """Output must parse as a valid macOS plist."""
+        import plistlib
+        parsed = plistlib.loads(self.sched.to_plist().encode())
+        self.assertEqual(parsed["ProgramArguments"][1], "-p")
+        self.assertEqual(parsed["ProgramArguments"][2], "run my daily brief")
+        self.assertEqual(len(parsed["StartCalendarInterval"]), 5)
+        entry = parsed["StartCalendarInterval"][0]
+        self.assertEqual(entry["Hour"], 5)
+        self.assertEqual(entry["Minute"], 55)
+        self.assertEqual(entry["Weekday"], 1)
+
+    def test_plist_round_trips_with_escaped_prompt(self):
+        """XML-escaped prompts must decode back to the original string."""
+        import plistlib
+        original = 'run "x" & <y>'
+        s = scheduler.Schedule(
+            id="z" * 32, skill_id="z", prompt=original, hour=1, minute=2
+        )
+        parsed = plistlib.loads(s.to_plist().encode())
+        self.assertEqual(parsed["ProgramArguments"][2], original)
+
 
 class TestSkillFrontmatter(unittest.TestCase):
     def test_parses_triggers_and_description(self):
