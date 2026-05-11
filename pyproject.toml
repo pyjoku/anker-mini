@@ -9,6 +9,7 @@ dependencies = [
 
 [project.scripts]
 anker-mini = "code.bot:main"
+anker-mini-cli = "code.cli:main"
 
 [tool.uv]
 package = false

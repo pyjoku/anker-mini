@@ -69,7 +69,8 @@ async def cmd_skills(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     lines = ["*Verfuegbare Skills:*"]
     for s in skills:
-        desc = f" — {s.description}" if s.description else ""
+        first_line = s.description.splitlines()[0][:120] if s.description else ""
+        desc = f" — {first_line}" if first_line else ""
         lines.append(f"• `{s.id}`{desc}")
     await update.effective_message.reply_text("\n".join(lines), parse_mode="Markdown")
 

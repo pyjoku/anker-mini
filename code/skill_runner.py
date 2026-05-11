@@ -33,38 +33,68 @@ class Skill:
 
 
 def _parse_frontmatter(text: str) -> dict[str, object]:
-    """Tiny YAML-ish parser — handles flat key/value and simple list items (`- foo`)."""
+    """Tiny YAML-ish parser. Handles:
+       - flat key/value:    `name: foo`
+       - list items:        `triggers:` followed by indented `- item` lines
+       - literal block:     `description: |` followed by indented content lines (joined as one string)
+    """
     m = FRONTMATTER_RE.match(text)
     if not m:
         return {}
     body = m.group(1)
     out: dict[str, object] = {}
     current_key: str | None = None
+    block_mode: str | None = None  # None, "list", or "scalar"
+    scalar_lines: list[str] = []
+
+    def _flush_scalar() -> None:
+        nonlocal scalar_lines, current_key
+        if current_key is not None and scalar_lines:
+            out[current_key] = "\n".join(scalar_lines).strip()
+        scalar_lines = []
+
     for raw in body.splitlines():
         if not raw.strip():
+            if block_mode == "scalar":
+                scalar_lines.append("")
             continue
         if raw.startswith(" ") or raw.startswith("\t"):
-            # List item under current key
-            item = raw.strip().lstrip("- ").strip().strip('"').strip("'")
-            if current_key is None:
+            stripped = raw.strip()
+            if block_mode == "scalar":
+                scalar_lines.append(stripped)
                 continue
-            existing = out.get(current_key)
-            if isinstance(existing, list):
-                existing.append(item)
-            else:
-                out[current_key] = [item]
+            if block_mode == "list" or stripped.startswith("- "):
+                item = stripped.lstrip("- ").strip().strip('"').strip("'")
+                if current_key is None:
+                    continue
+                existing = out.get(current_key)
+                if isinstance(existing, list):
+                    existing.append(item)
+                else:
+                    out[current_key] = [item]
+                block_mode = "list"
+                continue
+            # Indented but neither list nor scalar — ignore (best-effort)
             continue
-        # New top-level key
+        # New top-level key — flush any open scalar
+        _flush_scalar()
+        block_mode = None
         if ":" not in raw:
             continue
         key, _, value = raw.partition(":")
         key = key.strip()
         value = value.strip()
         current_key = key
-        if value:
+        if value == "|" or value == ">":
+            block_mode = "scalar"
+            scalar_lines = []
+            out[key] = ""
+        elif value:
             out[key] = value.strip('"').strip("'")
         else:
             out[key] = []
+            block_mode = "list"
+    _flush_scalar()
     return out
 
 
@@ -77,7 +107,7 @@ def parse_skill(path: Path) -> Skill | None:
     skill_id = path.stem
     name = str(fm.get("name") or skill_id)
     description_raw = fm.get("description") or ""
-    description = str(description_raw).split("\n")[0].strip()[:200]
+    description = str(description_raw).strip()
     triggers_raw = fm.get("triggers") or []
     triggers: list[str] = triggers_raw if isinstance(triggers_raw, list) else [str(triggers_raw)]
     return Skill(id=skill_id, path=path, name=name, description=description, triggers=triggers)
