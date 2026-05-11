@@ -29,6 +29,8 @@ Initial release. Built during one focused morning session (06:44–11:00).
 
 ### Added (continued)
 - **Linux scheduling backend** — `crontab` based, auto-dispatched via `platform.system()`. macOS keeps using launchd. Cron line: `MM HH * * <DAYS> cd <cwd> && claude -p '<prompt>' >> <log> 2>&1  # ANKER_MINI[<id>]`. ISO weekday 7 (Sun) gets remapped to cron 0.
+- **`anker-mini-cli verify-env`** — sanity-checks the .env + runtime: token, whitelist, skill paths, skill count, claude CLI presence, CLAUDE_CWD, platform backend (launchctl/crontab), log dir writable. Returns exit code 1 on any FAIL.
+- **`examples/weekly-review.md`** — second example skill, models a Sunday-evening review reading Daily Notes + Daily Logs + Daily Briefs from the past 7 days, writes to `Calendar/Reviews/`.
 
 ### Not yet
 - Windows Task Scheduler backend (Backlog).

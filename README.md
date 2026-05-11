@@ -50,7 +50,12 @@ anker-mini-cli preview daily-brief "05:55 mo-fr"
 anker-mini-cli schedules
 anker-mini-cli unschedule <id-prefix>
 anker-mini-cli reinstall    # alle plists aus schedules.json neu generieren
+anker-mini-cli verify-env   # Setup pruefen: Token, Skills, claude CLI, Backend
 ```
+
+**Tipp:** Nach `cp .env.example .env` + Bearbeiten immer `anker-mini-cli verify-env`
+laufen lassen — meldet alle FAILs (z.B. fehlender Bot-Token) und WARNs
+(offene Whitelist) bevor du den Bot installierst.
 
 ## .env Variablen
 
