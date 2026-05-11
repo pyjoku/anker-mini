@@ -13,9 +13,10 @@ Initial release. Built during one focused morning session (06:44–11:00).
   - `/run <skill> [prompt]` — execute via `claude -p`
   - `/schedule <skill> <HH:MM> [days]` — create LaunchAgent
   - `/preview <skill> <HH:MM> [days]` — show plist without installing
-  - `/schedules` — list active schedules
+  - `/schedules` — list active schedules (with next-firing time)
   - `/unschedule <id>` — remove a schedule
   - `/logs <skill> [n]` — show tail of skill output log
+  - `/check <skill>` — validate frontmatter and body
   - Optional Whitelist via `TELEGRAM_ALLOWED_USERS`
 - **CLI** (`code/cli.py` → `anker-mini-cli`) with the same surface as the bot, for headless setup.
 - **Skill discovery** (`code/skill_runner.py`) — `*.md` files in configured paths, YAML frontmatter parsed for `name`, `description`, `triggers`. Supports `description: |` literal blocks.

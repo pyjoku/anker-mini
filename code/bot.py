@@ -239,6 +239,50 @@ async def cmd_logs(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def cmd_check(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Validate a skill file — frontmatter, triggers, parsability."""
+    if not _authorize(update):
+        await _deny(update)
+        return
+    if not ctx.args:
+        await update.effective_message.reply_text("Usage: /check <skill>")
+        return
+    skill_id = ctx.args[0]
+    skill = skill_runner.find_skill(skill_id)
+    if skill is None:
+        await update.effective_message.reply_text(
+            f"❌ Skill nicht gefunden: {skill_id}\n"
+            f"   Pruefe SKILL_PATHS und dass die Datei `{skill_id}.md` heisst."
+        )
+        return
+    issues: list[str] = []
+    if not skill.triggers:
+        issues.append(
+            "⚠️ Keine `triggers:` im Frontmatter — Default-Prompt wird `run <skill>` sein. "
+            "Empfohlen: mind. 1 natuerlichsprachiger Trigger."
+        )
+    if not skill.description:
+        issues.append("⚠️ Keine `description:` — erscheint nicht in /skills Listings.")
+    body_size = skill.path.stat().st_size
+    if body_size < 200:
+        issues.append(f"⚠️ Skill-Body sehr klein ({body_size} bytes) — fehlt evtl. die Anleitung?")
+    lines = [
+        f"*Skill: `{skill.id}`*",
+        f"Pfad: `{skill.path}`",
+        f"Name: {skill.name}",
+        f"Triggers: {len(skill.triggers)} ({', '.join(skill.triggers[:3])})",
+        f"Description: {len(skill.description)} Zeichen",
+        f"File-Size: {body_size} bytes",
+        "",
+    ]
+    if issues:
+        lines.append("*Findings:*")
+        lines.extend(issues)
+    else:
+        lines.append("✅ Alles OK — Skill ist anker-mini-tauglich.")
+    await update.effective_message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
 async def cmd_help(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorize(update):
         await _deny(update)
@@ -252,7 +296,8 @@ async def cmd_help(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "/preview <skill> <HH:MM> [days] — plist anschauen ohne installieren\n"
         "/schedules — aktive Schedules\n"
         "/unschedule <id> — entfernen\n"
-        "/logs <skill> [n] — letzte Skill-Output-Zeilen",
+        "/logs <skill> [n] — letzte Skill-Output-Zeilen\n"
+        "/check <skill> — validiert Frontmatter & Body",
         parse_mode="Markdown",
     )
 
@@ -289,6 +334,7 @@ def main() -> None:
     app.add_handler(CommandHandler("unschedule", cmd_unschedule))
     app.add_handler(CommandHandler("preview", cmd_preview))
     app.add_handler(CommandHandler("logs", cmd_logs))
+    app.add_handler(CommandHandler("check", cmd_check))
     app.add_handler(MessageHandler(filters.COMMAND, fallback))
 
     logger.info("anker-mini gestartet")

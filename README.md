@@ -17,9 +17,10 @@ Stack: Python 3.11+, `python-telegram-bot` v21+, `launchd`, `claude` CLI.
 | `/run <skill> [prompt]` | Fuehrt einen Skill sofort via `claude -p` aus |
 | `/schedule <skill> <HH:MM> [days]` | Legt LaunchAgent an (z.B. `daily-brief 05:55 mo-fr`) |
 | `/preview <skill> <HH:MM> [days]` | Zeigt die plist die generiert wuerde — ohne zu installieren |
-| `/schedules` | Listet aktive Schedules |
+| `/schedules` | Listet aktive Schedules (mit naechster Lauf-Zeit) |
 | `/unschedule <id>` | Entfernt Schedule + LaunchAgent |
 | `/logs <skill> [n]` | Zeigt die letzten N Zeilen aus dem Skill-Output-Log |
+| `/check <skill>` | Validiert Frontmatter, Triggers, Body |
 
 Tagesangaben: `daily`, einzelne (`mo,di,fr`), Bereich (`mo-fr`).
 
