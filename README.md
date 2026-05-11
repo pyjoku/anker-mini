@@ -14,8 +14,10 @@ Stack: Python 3.11+, `python-telegram-bot` v21+, `launchd`, `claude` CLI.
 | `/skills` | Listet alle gefundenen Skills (aus `SKILL_PATHS`) |
 | `/run <skill> [prompt]` | Fuehrt einen Skill sofort via `claude -p` aus |
 | `/schedule <skill> <HH:MM> [days]` | Legt LaunchAgent an (z.B. `daily-brief 05:55 mo-fr`) |
+| `/preview <skill> <HH:MM> [days]` | Zeigt die plist die generiert wuerde — ohne zu installieren |
 | `/schedules` | Listet aktive Schedules |
 | `/unschedule <id>` | Entfernt Schedule + LaunchAgent |
+| `/logs <skill> [n]` | Zeigt die letzten N Zeilen aus dem Skill-Output-Log |
 
 Tagesangaben: `daily`, einzelne (`mo,di,fr`), Bereich (`mo-fr`).
 
@@ -32,6 +34,20 @@ uv sync               # oder: python -m venv .venv && pip install -e .
 
 Der Bot laeuft danach als LaunchAgent `com.anker.mini` — auto-start, keep-alive.
 Logs in `~/Library/Logs/anker-mini/bot.log`.
+
+## CLI-Alternative
+
+Falls Telegram nicht eingerichtet ist (oder fuer Setup-Skripte):
+
+```bash
+anker-mini-cli skills
+anker-mini-cli run pre-planner
+anker-mini-cli schedule daily-brief "05:55 mo-fr"
+anker-mini-cli preview daily-brief "05:55 mo-fr"
+anker-mini-cli schedules
+anker-mini-cli unschedule <id-prefix>
+anker-mini-cli reinstall    # alle plists aus schedules.json neu generieren
+```
 
 ## .env Variablen
 
