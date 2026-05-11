@@ -170,6 +170,70 @@ async def cmd_unschedule(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     )
 
 
+async def cmd_preview(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Dry-run /schedule — zeigt die plist, die generiert wuerde, ohne sie zu installieren."""
+    if not _authorize(update):
+        await _deny(update)
+        return
+    if len(ctx.args) < 2:
+        await update.effective_message.reply_text(
+            "Usage: /preview <skill> <HH:MM> [days]\nZeigt die plist OHNE zu installieren."
+        )
+        return
+    skill_id = ctx.args[0]
+    skill = skill_runner.find_skill(skill_id)
+    if skill is None:
+        await update.effective_message.reply_text(f"Skill nicht gefunden: {skill_id}")
+        return
+    spec = " ".join(ctx.args[1:])
+    try:
+        hour, minute, weekdays = scheduler.parse_schedule_spec(spec)
+    except ValueError as e:
+        await update.effective_message.reply_text(f"Spec ungueltig: {e}")
+        return
+    import uuid as _uuid
+    dummy = scheduler.Schedule(
+        id=_uuid.uuid4().hex,
+        skill_id=skill.id,
+        prompt=skill.default_prompt,
+        hour=hour,
+        minute=minute,
+        weekdays=weekdays,
+    )
+    body = dummy.to_plist()
+    # Telegram message limit safety
+    body = body if len(body) < 3500 else body[:3500] + "\n... (gekuerzt)"
+    await update.effective_message.reply_text(f"```xml\n{body}\n```", parse_mode="Markdown")
+
+
+async def cmd_logs(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Zeigt die letzten ~30 Zeilen aus dem Skill-Log."""
+    if not _authorize(update):
+        await _deny(update)
+        return
+    if not ctx.args:
+        await update.effective_message.reply_text("Usage: /logs <skill> [n_lines]")
+        return
+    skill_id = ctx.args[0]
+    n = 30
+    if len(ctx.args) > 1 and ctx.args[1].isdigit():
+        n = max(1, min(200, int(ctx.args[1])))
+    log_path = config.log_dir() / f"{skill_id}.log"
+    if not log_path.exists():
+        await update.effective_message.reply_text(f"Kein Log fuer: {skill_id}")
+        return
+    lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    tail = "\n".join(lines[-n:])
+    if not tail.strip():
+        tail = "(leer)"
+    if len(tail) > 3500:
+        tail = "... (gekuerzt) ...\n" + tail[-3500:]
+    await update.effective_message.reply_text(
+        f"*{skill_id}* letzte {n} Zeilen:\n```\n{tail}\n```",
+        parse_mode="Markdown",
+    )
+
+
 async def cmd_help(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorize(update):
         await _deny(update)
@@ -180,8 +244,10 @@ async def cmd_help(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "/skills — Skills auflisten\n"
         "/run <skill> [prompt] — sofort ausfuehren\n"
         "/schedule <skill> <HH:MM> [days] — schedulen\n"
+        "/preview <skill> <HH:MM> [days] — plist anschauen ohne installieren\n"
         "/schedules — aktive Schedules\n"
-        "/unschedule <id> — entfernen",
+        "/unschedule <id> — entfernen\n"
+        "/logs <skill> [n] — letzte Skill-Output-Zeilen",
         parse_mode="Markdown",
     )
 
@@ -216,6 +282,8 @@ def main() -> None:
     app.add_handler(CommandHandler("schedule", cmd_schedule))
     app.add_handler(CommandHandler("schedules", cmd_schedules))
     app.add_handler(CommandHandler("unschedule", cmd_unschedule))
+    app.add_handler(CommandHandler("preview", cmd_preview))
+    app.add_handler(CommandHandler("logs", cmd_logs))
     app.add_handler(MessageHandler(filters.COMMAND, fallback))
 
     logger.info("anker-mini gestartet")
