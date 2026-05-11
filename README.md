@@ -120,6 +120,22 @@ deterministisch daraus generiert. Bei Setup-Verlust:
 
 Backend-Dispatch via `platform.system()` in `code/scheduler.py`.
 
+## Troubleshooting
+
+Erst immer `anker-mini-cli verify-env` laufen lassen — deckt die meisten Probleme auf.
+
+| Symptom | Wahrscheinliche Ursache | Fix |
+|---|---|---|
+| Bot startet nicht / Telegram bleibt stumm | `TELEGRAM_BOT_TOKEN` fehlt oder falsch | Token bei @BotFather neu generieren, in `.env` eintragen |
+| `/start` antwortet „Zugriff verweigert" | Du bist nicht in `TELEGRAM_ALLOWED_USERS` | eigene User-ID rausfinden (z.B. via @userinfobot) + in `.env` |
+| `/skills` zeigt leere Liste | `SKILL_PATHS` falsch oder leer | Pfade pruefen — Doppelpunkt-getrennt, absolut, `*.md`-Files drin |
+| `/run` haengt oder Fehler | `claude` CLI nicht in PATH oder nicht ausgefuehrt | `which claude` pruefen, `CLAUDE_BIN` in `.env` setzen falls noetig |
+| `/schedule` ok aber Skill feuert nicht | macOS: App-Sandbox blockiert; Linux: User-crontab deaktiviert | macOS: Terminal Full-Disk-Access geben; Linux: `crontab -l` muss laufen |
+| `launchctl bootstrap` Fehler 5 oder 78 | Schon geladen oder GUI-Session fehlt | Bootout zuerst, oder ueber GUI-Session laufen (kein SSH-only) |
+| `data/schedules.json` out-of-sync mit installierten plists/crons | Backend-Artefakt von Hand geloescht | `anker-mini-cli reinstall` — re-generiert alles aus state file |
+| LaunchAgent „Loaded" aber Skill feuert nicht | StartCalendarInterval-Trigger noch nicht erreicht | `launchctl print gui/$(id -u)/<label>` zeigt naechsten Trigger-Zeitpunkt |
+| Skill-Output landet nicht im Vault | Skill schreibt nicht selbst, sondern claude muss das tun | Skill-File so schreiben dass der Output-Pfad explizit gesetzt wird (z.B. via Obsidian CLI im Skill) |
+
 ## Sicherheit
 
 - `TELEGRAM_ALLOWED_USERS` immer setzen ausserhalb von Dev.
