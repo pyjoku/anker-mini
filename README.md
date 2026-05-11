@@ -1,5 +1,7 @@
 # anker-mini
 
+![tests](https://github.com/pyjoku/anker-mini/actions/workflows/test.yml/badge.svg) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Stripped-down Telegram-Bot + Skill-Scheduler. Findet Markdown-Skills im
 Filesystem, fuehrt sie ueber `claude -p` aus, und kann sie ueber Telegram-Befehle
 als macOS LaunchAgents schedulen — ohne zusaetzliche Datenbank, ohne GraphRAG,
