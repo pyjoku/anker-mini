@@ -26,6 +26,7 @@ class Skill:
     name: str
     description: str
     triggers: list[str]
+    anker_cron: str = ""  # SSOT for scheduling — e.g. "05:55 mo-fr" or "daily 07:00"
 
     @property
     def default_prompt(self) -> str:
@@ -110,7 +111,48 @@ def parse_skill(path: Path) -> Skill | None:
     description = str(description_raw).strip()
     triggers_raw = fm.get("triggers") or []
     triggers: list[str] = triggers_raw if isinstance(triggers_raw, list) else [str(triggers_raw)]
-    return Skill(id=skill_id, path=path, name=name, description=description, triggers=triggers)
+    anker_cron = str(fm.get("anker_cron") or "").strip()
+    return Skill(
+        id=skill_id, path=path, name=name, description=description,
+        triggers=triggers, anker_cron=anker_cron,
+    )
+
+
+def set_skill_cron(skill_path: Path, cron_spec: str | None) -> None:
+    """Write or remove `anker_cron` in a skill's YAML frontmatter.
+    cron_spec=None → remove the line. Otherwise → set/replace.
+    Preserves everything else in the file as-is."""
+    if not skill_path.exists():
+        raise FileNotFoundError(skill_path)
+    text = skill_path.read_text(encoding="utf-8")
+    m = FRONTMATTER_RE.match(text)
+    if not m:
+        # No frontmatter at all — synthesize a minimal one
+        if cron_spec is None:
+            return
+        new_fm = f"---\nanker_cron: {cron_spec!r}\n---\n\n"
+        skill_path.write_text(new_fm + text, encoding="utf-8")
+        return
+    fm_body = m.group(1)
+    fm_lines = fm_body.split("\n")
+    new_lines: list[str] = []
+    found = False
+    for line in fm_lines:
+        if line.strip().startswith("anker_cron:"):
+            found = True
+            if cron_spec is not None:
+                new_lines.append(f"anker_cron: {cron_spec!r}")
+            # if cron_spec is None, drop the line (don't append)
+        else:
+            new_lines.append(line)
+    if not found and cron_spec is not None:
+        # Insert before any trailing blanks
+        while new_lines and not new_lines[-1].strip():
+            new_lines.pop()
+        new_lines.append(f"anker_cron: {cron_spec!r}")
+    new_fm_body = "\n".join(new_lines)
+    new_text = f"---\n{new_fm_body}\n---\n" + text[m.end():]
+    skill_path.write_text(new_text, encoding="utf-8")
 
 
 def discover_skills(paths: Iterable[Path] | None = None) -> list[Skill]:

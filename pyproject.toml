@@ -7,9 +7,15 @@ dependencies = [
     "python-telegram-bot[ext]>=21.0",
 ]
 
+[project.optional-dependencies]
+mac = [
+    "rumps>=0.4",
+]
+
 [project.scripts]
 anker-mini = "code.bot:main"
 anker-mini-cli = "code.cli:main"
+anker-mini-menu = "code.menubar:main"
 
 [tool.uv]
 package = false

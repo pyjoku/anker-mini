@@ -2,6 +2,30 @@
 
 All notable changes to this project.
 
+## [0.2.0] — 2026-05-12
+
+Big pivot: skill `.md` frontmatter is now Single Source of Truth for scheduling.
+Config moves to `~/.ankermini/config.json`. macOS menubar app shipped.
+
+### Added
+- **`anker_cron:` YAML frontmatter in skill files** is the SSOT. Format: `HH:MM <days>` (e.g. `"05:55 mo-fr"`). On bot startup and on `/reconcile`, the scheduler reads every skill's `anker_cron` and reconciles installed plist/cron entries: adds new ones, updates changed ones, removes orphans. `data/schedules.json` is now a cache, not the source.
+- **`/sources`, `/addsource <path>`, `/removesource <path>`** — manage skill-source folders at runtime, no `.env` editing.
+- **`/vault`, `/setvault <abs-path>`** — set a default vault root. `/addsource` then accepts vault-relative paths (e.g. `/addsource AIOS/Skills`).
+- **`/reconcile`** — force a manual reconcile from skill files.
+- **`/check <skill>`** — inspect a skill's frontmatter (triggers, description, body size).
+- **Plain-text handler** — non-command messages are forwarded as `claude -p` prompts. If a skill trigger phrase is detected in the text, that skill is bound; otherwise it runs as a bare conversation. Bot is never silent.
+- **AI fallback for schedule specs** — `/schedule daily-brief "jeden morgen um halb sieben unter der woche"` calls `claude -p` with a strict prompt to normalize to `HH:MM <days>`. Strict parser tries first; AI only on failure.
+- **`code/menubar.py` — macOS menubar app** (rumps). `⚓` icon with submenus for Skills (Run / Schedule… / Remove schedule / Reveal source), Sources (Add… / Remove / Reveal in Finder, native folder picker), Schedules (with next-firing time), Vault (Change…), Bot (Start/Stop/Tail log). Long-running ops (`claude -p` AI normalize, `launchctl bootstrap`, reconcile) run in worker threads so the menu stays responsive. Native AppleScript dialog for text input.
+- **`anker-mini-menu` entry point + `mac` extras** — `uv sync --extra mac` installs rumps + PyObjC.
+- **Config migration** — first run migrates `.env` → `~/.ankermini/config.json` (token, paths, vault).
+
+### Changed
+- `pyproject.toml`: added `mac` optional dependency group and the `anker-mini-menu` script entry point.
+- `bot.py`: `/schedule` now writes `anker_cron:` into the skill file and reconciles, instead of writing directly to schedules.json. `/unschedule <skill>` removes the YAML key.
+
+### Fixed
+- rumps `_notify` failures (missing `Info.plist` in `uv`-created venvs) no longer crash callbacks. Project README documents the `PlistBuddy -c 'Add :CFBundleIdentifier string "rumps"'` workaround.
+
 ## [0.1.0] — 2026-05-11
 
 Initial release. Built during one focused morning session (06:44–11:00).

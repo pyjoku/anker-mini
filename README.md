@@ -13,14 +13,48 @@ Stack: Python 3.11+, `python-telegram-bot` v21+, `launchd`, `claude` CLI.
 
 | Befehl | Tut |
 |---|---|
-| `/skills` | Listet alle gefundenen Skills (aus `SKILL_PATHS`) |
+| `/skills` | Listet alle gefundenen Skills |
+| `/sources`, `/addsource <pfad>`, `/removesource <pfad>` | Skill-Source-Ordner zur Laufzeit verwalten |
+| `/vault`, `/setvault <abs-pfad>` | Default-Vault setzen (dann nimmt `/addsource` relative Pfade) |
 | `/run <skill> [prompt]` | Fuehrt einen Skill sofort via `claude -p` aus |
-| `/schedule <skill> <HH:MM> [days]` | Legt LaunchAgent an (z.B. `daily-brief 05:55 mo-fr`) |
-| `/preview <skill> <HH:MM> [days]` | Zeigt die plist die generiert wuerde — ohne zu installieren |
+| `/schedule <skill> <spec>` | Schreibt `anker_cron:` in die Skill-Datei + reconcile (natural language ok — AI-Fallback) |
+| `/preview <skill> <spec>` | Zeigt die plist die generiert wuerde — ohne zu installieren |
 | `/schedules` | Listet aktive Schedules (mit naechster Lauf-Zeit) |
-| `/unschedule <id>` | Entfernt Schedule + LaunchAgent |
+| `/unschedule <skill>` | Entfernt `anker_cron:` aus der Skill-Datei + reconcile |
+| `/reconcile` | Manueller Reconcile von Skill-YAML → installierte Schedules |
 | `/logs <skill> [n]` | Zeigt die letzten N Zeilen aus dem Skill-Output-Log |
 | `/check <skill>` | Validiert Frontmatter, Triggers, Body |
+| _(plain text)_ | Wird als Prompt an `claude -p` durchgereicht, mit Skill-Trigger-Erkennung |
+
+## SSOT — Skill files steuern Schedules
+
+`anker_cron:` im YAML-Frontmatter ist die Source of Truth fuer Scheduling. Beim Bot-Start (und auf `/reconcile`) liest der Scheduler jedes Skill, vergleicht mit installierten LaunchAgents und macht added/updated/removed.
+
+```yaml
+---
+name: daily-brief
+triggers:
+  - daily brief
+anker_cron: "05:55 mo-fr"      ← installiert sich automatisch
+---
+```
+
+Du kannst die Zeile direkt in Obsidian editieren — beim nächsten Bot-Start oder `/reconcile` wird's wirksam.
+
+## macOS Menubar (optional)
+
+```bash
+uv sync --extra mac          # installiert rumps + PyObjC
+anker-mini-menu              # startet die ⚓-Menubar-App
+```
+
+Menü-Struktur: **Skills** (jeder Skill → Run now / Schedule… / Remove schedule), **Sources** (Add… via Folder-Picker), **Schedules** (mit Next-Run-Zeit), **Vault** (Change…), **Bot** (Start/Stop/Tail Log). Reconcile aus dem Schedule-Submenu.
+
+**Bekannter Quirk**: rumps braucht ein `Info.plist` mit `CFBundleIdentifier` im venv-bin-Ordner, sonst crasht `rumps.notification`. Einmalig:
+
+```bash
+/usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string "rumps"' .venv/bin/Info.plist
+```
 
 Tagesangaben: `daily`, einzelne (`mo,di,fr`), Bereich (`mo-fr`).
 

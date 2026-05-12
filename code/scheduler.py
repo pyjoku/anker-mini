@@ -226,6 +226,66 @@ def reinstall_all() -> None:
         _install(s)
 
 
+def reconcile_from_skills() -> dict[str, list[str]]:
+    """Reconcile installed schedules with skill files' `anker_cron` declarations.
+    Skill .md files are the Source of Truth.
+
+    Returns a dict with three lists: 'added', 'updated', 'removed' (each list of skill_ids).
+    """
+    # Late import to avoid circular dep
+    from . import skill_runner
+
+    desired: dict[str, tuple[int, int, list[int], str]] = {}  # skill_id → (h,m,wd,spec_str)
+    skills_by_id: dict[str, "skill_runner.Skill"] = {}
+    for skill in skill_runner.discover_skills():
+        if not skill.anker_cron:
+            continue
+        try:
+            h, m, w = parse_schedule_spec(skill.anker_cron)
+        except ValueError:
+            # Bad spec in file — skip but log via stderr
+            import sys
+            print(
+                f"WARN: skill '{skill.id}' has invalid anker_cron='{skill.anker_cron}' — skipping",
+                file=sys.stderr,
+            )
+            continue
+        desired[skill.id] = (h, m, w, skill.anker_cron)
+        skills_by_id[skill.id] = skill
+
+    current_by_skill: dict[str, Schedule] = {}
+    for s in _load_state():
+        # If multiple schedules exist for same skill, keep the first; others get removed below
+        current_by_skill.setdefault(s.skill_id, s)
+
+    added: list[str] = []
+    updated: list[str] = []
+    removed: list[str] = []
+
+    # Add or update
+    for skill_id, (h, m, w, spec_str) in desired.items():
+        cur = current_by_skill.get(skill_id)
+        if cur is None:
+            # New schedule
+            skill = skills_by_id[skill_id]
+            add_schedule(skill_id, skill.default_prompt, h, m, w)
+            added.append(skill_id)
+        elif (cur.hour, cur.minute, sorted(cur.weekdays)) != (h, m, sorted(w)):
+            # Spec changed — replace
+            remove_schedule(cur.id)
+            skill = skills_by_id[skill_id]
+            add_schedule(skill_id, skill.default_prompt, h, m, w)
+            updated.append(skill_id)
+
+    # Remove orphans (schedules whose skill no longer declares anker_cron)
+    for skill_id, sched in current_by_skill.items():
+        if skill_id not in desired:
+            remove_schedule(sched.id)
+            removed.append(skill_id)
+
+    return {"added": added, "updated": updated, "removed": removed}
+
+
 def _install(s: Schedule) -> None:
     """Backend-dispatched install."""
     system = platform.system()
@@ -324,6 +384,55 @@ WEEKDAY_NAMES = {
     "mo": 1, "di": 2, "mi": 3, "do": 4, "fr": 5, "sa": 6, "so": 7,
     "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6, "sun": 7,
 }
+
+
+def parse_schedule_spec_with_ai_fallback(spec: str) -> tuple[int, int, list[int], str]:
+    """Try strict parser first. On failure, ask `claude -p` to normalize.
+    Returns (hour, minute, weekdays, source) where source is 'direct' or 'ai'."""
+    try:
+        h, m, w = parse_schedule_spec(spec)
+        return h, m, w, "direct"
+    except ValueError:
+        pass
+    normalized = _ai_normalize_spec(spec)
+    h, m, w = parse_schedule_spec(normalized)
+    return h, m, w, "ai"
+
+
+def _ai_normalize_spec(natural_text: str) -> str:
+    """Call `claude -p` with a strict prompt to convert NL → HH:MM <days> format.
+    Raises ValueError if AI output doesn't parse."""
+    prompt = (
+        "You are a scheduler. Convert the user's natural-language schedule to EXACTLY "
+        "this format on a single line:\n"
+        "  HH:MM <days>\n"
+        "Where:\n"
+        "  HH:MM is 24-hour local time (zero-padded).\n"
+        "  <days> is one of:\n"
+        "    - 'daily'\n"
+        "    - a comma-separated list from: mo,di,mi,do,fr,sa,so\n"
+        "    - a range like 'mo-fr'\n"
+        "Output ONLY the formatted line, no prose, no quotes, no markdown.\n"
+        f"User input: {natural_text}"
+    )
+    try:
+        result = subprocess.run(
+            [config.claude_bin(), "-p", prompt],
+            cwd=str(config.claude_cwd()),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        raise ValueError(f"AI-Normalisierung fehlgeschlagen: {e}")
+    if result.returncode != 0:
+        raise ValueError(f"AI-Normalisierung fehlgeschlagen (exit {result.returncode})")
+    line = result.stdout.strip().split("\n")[-1].strip().strip("`").strip('"').strip("'")
+    if not line:
+        raise ValueError("AI lieferte leere Antwort")
+    # Validate it parses
+    parse_schedule_spec(line)
+    return line
 
 
 def parse_schedule_spec(spec: str) -> tuple[int, int, list[int]]:
