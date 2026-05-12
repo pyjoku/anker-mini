@@ -2,79 +2,91 @@
 
 ![tests](https://github.com/pyjoku/anker-mini/actions/workflows/test.yml/badge.svg) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Stripped-down Telegram-Bot + Skill-Scheduler. Findet Markdown-Skills im
-Filesystem, fuehrt sie ueber `claude -p` aus, und kann sie ueber Telegram-Befehle
-als macOS LaunchAgents schedulen — ohne zusaetzliche Datenbank, ohne GraphRAG,
-ohne Frontend.
+Stripped-down Telegram bot and skill scheduler. Discovers Markdown skills on
+your filesystem, runs them via `claude -p`, and schedules them as macOS
+LaunchAgents or Linux cron jobs — no database, no GraphRAG, no frontend.
 
-Stack: Python 3.11+, `python-telegram-bot` v21+, `launchd`, `claude` CLI.
+Stack: Python 3.11+, `python-telegram-bot` v21+, `launchd` / `crontab`, the
+`claude` CLI.
 
-## Was es kann
+## What it does
 
-| Befehl | Tut |
+| Command | Action |
 |---|---|
-| `/skills` | Listet alle gefundenen Skills |
-| `/sources`, `/addsource <pfad>`, `/removesource <pfad>` | Skill-Source-Ordner zur Laufzeit verwalten |
-| `/vault`, `/setvault <abs-pfad>` | Default-Vault setzen (dann nimmt `/addsource` relative Pfade) |
-| `/run <skill> [prompt]` | Fuehrt einen Skill sofort via `claude -p` aus |
-| `/schedule <skill> <spec>` | Schreibt `anker_cron:` in die Skill-Datei + reconcile (natural language ok — AI-Fallback) |
-| `/preview <skill> <spec>` | Zeigt die plist die generiert wuerde — ohne zu installieren |
-| `/schedules` | Listet aktive Schedules (mit naechster Lauf-Zeit) |
-| `/unschedule <skill>` | Entfernt `anker_cron:` aus der Skill-Datei + reconcile |
-| `/reconcile` | Manueller Reconcile von Skill-YAML → installierte Schedules |
-| `/logs <skill> [n]` | Zeigt die letzten N Zeilen aus dem Skill-Output-Log |
-| `/check <skill>` | Validiert Frontmatter, Triggers, Body |
-| _(plain text)_ | Wird als Prompt an `claude -p` durchgereicht, mit Skill-Trigger-Erkennung |
+| `/skills` | List all discovered skills |
+| `/sources`, `/addsource <path>`, `/removesource <path>` | Manage skill source folders at runtime |
+| `/vault`, `/setvault <abs-path>` | Set a default vault root (then `/addsource` accepts vault-relative paths) |
+| `/run <skill> [prompt]` | Run a skill once via `claude -p` |
+| `/schedule <skill> <spec>` | Write `anker_cron:` into the skill file and reconcile (natural language OK — AI fallback) |
+| `/preview <skill> <spec>` | Show the plist that would be generated, without installing it |
+| `/schedules` | List active schedules with their next firing time |
+| `/unschedule <skill>` | Remove `anker_cron:` from the skill file and reconcile |
+| `/reconcile` | Manual reconcile from skill YAML to installed schedules |
+| `/logs <skill> [n]` | Tail the skill's output log |
+| `/check <skill>` | Validate frontmatter, triggers, body |
+| _(plain text)_ | Forwarded to `claude -p` as a prompt, with skill-trigger detection |
 
-## SSOT — Skill files steuern Schedules
+## SSOT — skill files drive schedules
 
-`anker_cron:` im YAML-Frontmatter ist die Source of Truth fuer Scheduling. Beim Bot-Start (und auf `/reconcile`) liest der Scheduler jedes Skill, vergleicht mit installierten LaunchAgents und macht added/updated/removed.
+`anker_cron:` in YAML frontmatter is the source of truth for scheduling. On
+bot startup (and on `/reconcile`), the scheduler reads every skill, compares
+to currently installed LaunchAgents, and adds / updates / removes as needed.
 
 ```yaml
 ---
 name: daily-brief
 triggers:
   - daily brief
-anker_cron: "05:55 mo-fr"      ← installiert sich automatisch
+anker_cron: "05:55 mo-fr"      # ← installs itself automatically
 ---
 ```
 
-Du kannst die Zeile direkt in Obsidian editieren — beim nächsten Bot-Start oder `/reconcile` wird's wirksam.
+You can edit this line directly in Obsidian. It takes effect on the next bot
+start or `/reconcile`.
 
-## macOS Menubar (optional)
+Day specs: `daily`, single days (`mo,di,fr`), ranges (`mo-fr`). German and
+English weekday names are both accepted (`mo`/`mon`, `di`/`tue`, …).
+
+## Install
 
 ```bash
-uv sync --extra mac          # installiert rumps + PyObjC
-anker-mini-menu              # startet die ⚓-Menubar-App
+git clone https://github.com/pyjoku/anker-mini.git ~/projects/anker-mini
+cd ~/projects/anker-mini
+cp .env.example .env
+$EDITOR .env          # TELEGRAM_BOT_TOKEN, allowed users, skill paths
+uv sync               # or: python -m venv .venv && pip install -e .
+./scripts/install_bot.sh
 ```
 
-Menü-Struktur: **Skills** (jeder Skill → Run now / Schedule… / Remove schedule), **Sources** (Add… via Folder-Picker), **Schedules** (mit Next-Run-Zeit), **Vault** (Change…), **Bot** (Start/Stop/Tail Log). Reconcile aus dem Schedule-Submenu.
+The bot runs as a LaunchAgent `com.anker.mini` — auto-start, keep-alive.
+Logs in `~/Library/Logs/anker-mini/bot.log`.
 
-**Bekannter Quirk**: rumps braucht ein `Info.plist` mit `CFBundleIdentifier` im venv-bin-Ordner, sonst crasht `rumps.notification`. Einmalig:
+On first run, settings from `.env` are migrated into
+`~/.ankermini/config.json`. After that the JSON file is the canonical config
+location.
+
+## macOS menubar (optional)
+
+```bash
+uv sync --extra mac          # installs rumps + PyObjC
+anker-mini-menu              # launches the ⚓ menubar app
+```
+
+Menu structure: **Skills** (each skill → Run now / Schedule… / Remove schedule),
+**Sources** (Add… via native folder picker), **Schedules** (with next-run
+time), **Vault** (Change…), **Bot** (Start / Stop / Tail log). Reconcile is in
+the Schedules submenu.
+
+**Known quirk:** `rumps.notification` fails on `uv`-created venvs that lack an
+`Info.plist`. One-time fix:
 
 ```bash
 /usr/libexec/PlistBuddy -c 'Add :CFBundleIdentifier string "rumps"' .venv/bin/Info.plist
 ```
 
-Tagesangaben: `daily`, einzelne (`mo,di,fr`), Bereich (`mo-fr`).
+## CLI alternative
 
-## Installation
-
-```bash
-git clone <repo> ~/projects/anker-mini
-cd ~/projects/anker-mini
-cp .env.example .env
-$EDITOR .env          # TELEGRAM_BOT_TOKEN, allowed users, skill paths
-uv sync               # oder: python -m venv .venv && pip install -e .
-./scripts/install_bot.sh
-```
-
-Der Bot laeuft danach als LaunchAgent `com.anker.mini` — auto-start, keep-alive.
-Logs in `~/Library/Logs/anker-mini/bot.log`.
-
-## CLI-Alternative
-
-Falls Telegram nicht eingerichtet ist (oder fuer Setup-Skripte):
+For headless setup, scripting, or when Telegram is not configured:
 
 ```bash
 anker-mini-cli skills
@@ -83,104 +95,134 @@ anker-mini-cli schedule daily-brief "05:55 mo-fr"
 anker-mini-cli preview daily-brief "05:55 mo-fr"
 anker-mini-cli schedules
 anker-mini-cli unschedule <id-prefix>
-anker-mini-cli reinstall    # alle plists aus schedules.json neu generieren
-anker-mini-cli verify-env   # Setup pruefen: Token, Skills, claude CLI, Backend
+anker-mini-cli reinstall    # re-generate all schedule artefacts from state
+anker-mini-cli verify-env   # check token, skills, claude CLI, backend
 ```
 
-**Tipp:** Nach `cp .env.example .env` + Bearbeiten immer `anker-mini-cli verify-env`
-laufen lassen — meldet alle FAILs (z.B. fehlender Bot-Token) und WARNs
-(offene Whitelist) bevor du den Bot installierst.
+**Tip:** after editing `.env`, always run `anker-mini-cli verify-env` — it
+reports any FAILs (missing bot token, missing `claude` CLI, etc.) and WARNs
+(open whitelist) before you start the bot.
 
-## .env Variablen
+## .env variables
 
-| Variable | Bedeutung | Pflicht |
+| Variable | Meaning | Required |
 |---|---|---|
-| `TELEGRAM_BOT_TOKEN` | Bot-Token vom @BotFather | ✅ |
-| `TELEGRAM_ALLOWED_USERS` | Komma-getrennte User-IDs (Whitelist). Leer = offen (dev only) | ⚠️ empfohlen |
-| `SKILL_PATHS` | Doppelpunkt-getrennte absolute Pfade mit `*.md` Skill-Files | ✅ |
-| `CLAUDE_CWD` | Working Directory fuer `claude -p` (wo CLAUDE.md liegt) | ✅ |
-| `CLAUDE_BIN` | Pfad zur `claude` CLI | default: `claude` |
-| `LOG_DIR` | Wo Skill-Logs landen | default: `~/Library/Logs/anker-mini` |
+| `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather | ✅ |
+| `TELEGRAM_ALLOWED_USERS` | Comma-separated user IDs (whitelist). Empty = open (dev only) | ⚠️ recommended |
+| `SKILL_PATHS` | Colon-separated absolute paths to folders of `*.md` skills | ✅ |
+| `CLAUDE_CWD` | Working directory for `claude -p` (where CLAUDE.md lives) | ✅ |
+| `CLAUDE_BIN` | Path to the `claude` CLI | default: `claude` |
+| `LOG_DIR` | Where skill logs go | default: `~/Library/Logs/anker-mini` |
 
-## Skill-Format
+## Skill format
 
-Jeder Skill ist eine `.md` mit YAML-Frontmatter — kompatibel mit dem Pattern,
-das z.B. Nick Milos AIOS und Jochens Anker-Vault nutzen:
+A skill is a `.md` file with YAML frontmatter — compatible with the same
+pattern used by e.g. Nick Milo's AIOS:
 
 ```yaml
 ---
 name: pre-planner
 description: |
-  Zerlegt eine Aktivitaet in Zeitbloecke ...
+  Break an activity into time blocks, compute a departure time via forward
+  + backward + sum cross-check ...
 triggers:
-  - wann muss ich los
+  - when do I have to leave
   - pre-planner
+anker_cron: "07:00 mo-fr"     # optional — schedules the skill
 ---
 
 # Pre-Planner
 
-... Skill-Inhalt ...
+... skill body ...
 ```
 
-- `name` (default: filename ohne `.md`) → wird als Skill-ID verwendet.
-- `description` (erste Zeile) → erscheint im `/skills` Listing.
-- `triggers` → erster Eintrag wird zum Default-Prompt fuer `claude -p`.
+- `name` (defaults to the filename without `.md`) → used as the skill ID.
+- `description` → shown in `/skills` listings.
+- `triggers` → the first entry is the default prompt passed to `claude -p`;
+  any of them, if found in plain-text Telegram messages, will fire the skill.
+- `anker_cron` (optional) → installs a recurring schedule. Format `HH:MM <days>`.
 
-## Architektur
+## Architecture
 
 ```
 anker-mini/
 ├── code/
-│   ├── bot.py           Telegram-Bot (commands)
-│   ├── scheduler.py     Plist-Generierung, launchctl bootstrap/bootout
-│   ├── skill_runner.py  Skill-Discovery + claude -p Aufruf
-│   └── config.py        .env-Loader
+│   ├── bot.py           Telegram bot (commands + plain-text handler)
+│   ├── menubar.py       macOS menubar app (rumps)
+│   ├── cli.py           local CLI (anker-mini-cli)
+│   ├── scheduler.py     Platform-dispatched scheduling (launchd / crontab)
+│   ├── skill_runner.py  Skill discovery + claude -p invocation
+│   └── config.py        ~/.ankermini/config.json loader
 ├── scripts/
-│   └── install_bot.sh   Setzt com.anker.mini als LaunchAgent
-├── data/
-│   └── schedules.json   Source of Truth — Plists werden hieraus generiert
+│   └── install_bot.sh   Installs the bot as a LaunchAgent
+├── examples/            Example skills (daily-brief, weekly-review)
+├── tests/               unittest suite (23 cases)
 └── pyproject.toml
 ```
 
-State: `data/schedules.json` ist Single Source of Truth. Plists werden
-deterministisch daraus generiert. Bei Setup-Verlust:
-`python -c "from code.scheduler import reinstall_all; reinstall_all()"`.
+State files:
 
-## Plattform
+| File | Role |
+|---|---|
+| Skill `.md` files (`anker_cron:` field) | Source of truth for scheduling |
+| `~/.ankermini/config.json` | Telegram token, allowed users, skill paths, vault, claude config |
+| `~/.ankermini/schedules.json` | Cache of currently installed schedules |
+| `~/Library/LaunchAgents/com.anker.skill-*.plist` | macOS backend artefacts |
+| user crontab (entries marked `# ANKER_MINI[<id>]`) | Linux backend artefacts |
 
-- **macOS:** voll unterstuetzt — Schedules werden als `~/Library/LaunchAgents/com.anker.skill-*.plist` installiert und ueber `launchctl bootstrap` aktiviert.
-- **Linux:** unterstuetzt — Schedules landen als Eintrag im User-`crontab` mit Marker `# ANKER_MINI[<id>]` zur eindeutigen Wiedererkennung.
-- **Windows:** Bot laeuft, aber Scheduler-Backend fehlt noch (Task Scheduler-Integration als Backlog).
+If state and backend artefacts drift: `anker-mini-cli reinstall` rebuilds the
+backend from `schedules.json`; `/reconcile` rebuilds both from skill files.
 
-Backend-Dispatch via `platform.system()` in `code/scheduler.py`.
+## Platform support
+
+- **macOS:** fully supported. Schedules install as
+  `~/Library/LaunchAgents/com.anker.skill-*.plist` and load via
+  `launchctl bootstrap`.
+- **Linux:** supported. Schedules go into the user `crontab` with an
+  `# ANKER_MINI[<id>]` marker.
+- **Windows:** the bot runs, but the scheduler backend (Task Scheduler
+  integration) is not implemented yet — backlog.
+
+Backend dispatch lives in `code/scheduler.py` and keys on `platform.system()`.
 
 ## Troubleshooting
 
-Erst immer `anker-mini-cli verify-env` laufen lassen — deckt die meisten Probleme auf.
+Run `anker-mini-cli verify-env` first — it catches most setup problems.
 
-| Symptom | Wahrscheinliche Ursache | Fix |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| Bot startet nicht / Telegram bleibt stumm | `TELEGRAM_BOT_TOKEN` fehlt oder falsch | Token bei @BotFather neu generieren, in `.env` eintragen |
-| `/start` antwortet „Zugriff verweigert" | Du bist nicht in `TELEGRAM_ALLOWED_USERS` | eigene User-ID rausfinden (z.B. via @userinfobot) + in `.env` |
-| `/skills` zeigt leere Liste | `SKILL_PATHS` falsch oder leer | Pfade pruefen — Doppelpunkt-getrennt, absolut, `*.md`-Files drin |
-| `/run` haengt oder Fehler | `claude` CLI nicht in PATH oder nicht ausgefuehrt | `which claude` pruefen, `CLAUDE_BIN` in `.env` setzen falls noetig |
-| `/schedule` ok aber Skill feuert nicht | macOS: App-Sandbox blockiert; Linux: User-crontab deaktiviert | macOS: Terminal Full-Disk-Access geben; Linux: `crontab -l` muss laufen |
-| `launchctl bootstrap` Fehler 5 oder 78 | Schon geladen oder GUI-Session fehlt | Bootout zuerst, oder ueber GUI-Session laufen (kein SSH-only) |
-| `data/schedules.json` out-of-sync mit installierten plists/crons | Backend-Artefakt von Hand geloescht | `anker-mini-cli reinstall` — re-generiert alles aus state file |
-| LaunchAgent „Loaded" aber Skill feuert nicht | StartCalendarInterval-Trigger noch nicht erreicht | `launchctl print gui/$(id -u)/<label>` zeigt naechsten Trigger-Zeitpunkt |
-| Skill-Output landet nicht im Vault | Skill schreibt nicht selbst, sondern claude muss das tun | Skill-File so schreiben dass der Output-Pfad explizit gesetzt wird (z.B. via Obsidian CLI im Skill) |
+| Bot does not start / Telegram silent | `TELEGRAM_BOT_TOKEN` missing or wrong | Re-issue with @BotFather, paste into `.env` |
+| `/start` replies "access denied" | You're not in `TELEGRAM_ALLOWED_USERS` | Get your user ID via @userinfobot, add to `.env` |
+| `/skills` shows empty list | `SKILL_PATHS` empty or wrong | Verify paths — colon-separated, absolute, containing `*.md` files |
+| `/run` hangs or errors | `claude` CLI not on PATH | `which claude`; set `CLAUDE_BIN` in `.env` if needed |
+| `/schedule` succeeds but the skill never fires | macOS: app sandbox blocks it; Linux: user crontab disabled | macOS: grant Full-Disk-Access to Terminal; Linux: verify `crontab -l` works |
+| `launchctl bootstrap` returns error 5 or 78 | Already loaded, or no GUI session | `bootout` first, or run inside a GUI session (not SSH-only) |
+| `~/.ankermini/schedules.json` out of sync with installed artefacts | An artefact was hand-deleted | `anker-mini-cli reinstall` — regenerates everything from state |
+| `rumps.notification` crashes | venv missing `Info.plist` | Apply the `PlistBuddy` fix shown in the menubar section above |
+| LaunchAgent loaded but skill never fires | The `StartCalendarInterval` trigger hasn't fired yet | `launchctl print gui/$(id -u)/<label>` shows the next trigger time |
+| Skill output doesn't land in the vault | The skill body writes raw files instead of using Obsidian CLI | Edit the skill so its output path is explicit, preferably via Obsidian CLI |
 
-## Sicherheit
+## Security
 
-- `TELEGRAM_ALLOWED_USERS` immer setzen ausserhalb von Dev.
-- Skill-Execution per `claude -p` heisst: alles was `claude` kann, kann der Bot ausloesen — File-Schreiben, Bash, MCPs. Daher Whitelist Pflicht.
-- `.env` ist gitignored; nicht committen, nicht zippen ohne Verschluesselung (siehe `anker-mini-secrets` falls verfuegbar).
+- Always set `TELEGRAM_ALLOWED_USERS` outside dev.
+- Running a skill via `claude -p` means anything `claude` can do, the bot can
+  trigger — file writes, Bash, MCP calls. Whitelist is mandatory.
+- `~/.ankermini/config.json` holds your bot token in plaintext (`chmod 600`).
+  Don't commit it. The first-run migration may leave a `.env` in the project
+  root; that file is gitignored — keep it that way or delete it once
+  `config.json` is established.
 
-## Demo / Vergleich mit Nicks AIOS
+## Where this fits — vs. cloud-based AIOS patterns
 
-anker-mini ist als **schlanker Owner-Pfad-Counter-Punkt** zu Nicks AIOS gebaut:
-- Skills bleiben Markdown → portable
-- Scheduling im Skill-File (Frontmatter `schedule:`) → zukuenftige Erweiterung
-- Kein Cowork, kein Cloud-State, alles lokal
-- Vault-Schreiben empfohlen via Obsidian CLI (`obsidian write:note ...` aus dem
-  Skill heraus) statt rohes File-Writing — sichert Markdown-Konsistenz
+anker-mini is built as a lean owner-path counterpoint to cloud-hosted AI
+operating systems (e.g. Nick Milo's AIOS on Anthropic's Cowork):
+
+- Skills stay as Markdown files in your own filesystem — portable.
+- Scheduling lives in the skill file itself (`anker_cron:`), not in a vendor UI.
+- No cloud state, no proprietary workspace — everything is local.
+- Vault writes should go through Obsidian CLI from inside skills, to keep
+  Markdown formatting consistent.
+
+If your daily workflow already runs through Claude Code locally, anker-mini
+gives you the missing scheduler + Telegram surface without adding any new
+moving parts.
