@@ -129,7 +129,7 @@ def load_dotenv(path: Path | None = None) -> None:
 def bot_token() -> str:
     val = _read().get("telegram", {}).get("bot_token", "")
     if not val:
-        raise RuntimeError("FEHLER: telegram.bot_token fehlt in ~/.ankermini/config.json")
+        raise RuntimeError("ERROR: telegram.bot_token is missing in ~/.ankermini/config.json")
     return val
 
 
@@ -191,7 +191,7 @@ def claude_bin() -> str:
 def get(name: str, default: str | None = None, required: bool = False) -> str:
     val = os.environ.get(name, default)
     if required and not val:
-        raise RuntimeError(f"FEHLER: ENV-Variable {name} fehlt.")
+        raise RuntimeError(f"ERROR: env var {name} is missing.")
     return val or ""
 
 

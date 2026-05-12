@@ -1,75 +1,74 @@
 ---
 name: weekly-review
 description: |
-  Wochenrueckblick — liest alle Daily Notes der letzten 7 Tage, fasst zusammen
-  was passiert ist, welche Versprechen offen geblieben sind, und schlaegt 3-5
-  Fokuspunkte fuer die kommende Woche vor. Schreibt das Ergebnis nach
+  Weekly review — reads all daily notes from the last 7 days, summarizes
+  what happened, lists open commitments, and suggests 3-5 focus points for
+  the week ahead. Writes the result to
   Calendar/Reviews/YYYY-MM-DD Weekly Review.md.
 triggers:
   - weekly review
-  - wochenrueckblick
   - run my weekly review
-  - was war diese woche
-  - rueckblick erstellen
+  - what happened this week
+  - end-of-week recap
 dependencies:
-  - Obsidian CLI (lesen + schreiben fuer Konsistenz)
+  - Obsidian CLI (for consistent markdown read + write)
 created: 2026-05-11
 status: Example
 ---
 
-# Weekly Review (Example Skill)
+# Weekly Review (example skill)
 
-Wochenrueckblick. Sonntag abends oder Freitag spaet als Closing-Ritual.
+Weekly review. Sunday evening or late Friday as a closing ritual.
 
 ## When to use
 
-- **Scheduled:** typisch So 18:00 oder Fr 17:00 — *„`/schedule weekly-review 18:00 so`"*.
-- **Ad-hoc:** wenn die Woche kippt und du Re-Orientierung brauchst.
+- **Scheduled:** typically Sun 18:00 or Fri 17:00 — `/schedule weekly-review 18:00 so`.
+- **Ad-hoc:** when the week tips and you need re-orientation.
 
 ## Inputs
 
-Alle aus dem Vault, gelesen via Obsidian CLI fuer Markdown-Konsistenz:
+All from the vault, read via Obsidian CLI for markdown consistency:
 
-- **Daily Notes** der letzten 7 Tage (`Calendar/Days/YYYY-MM-DD.md`)
-- **Daily Logs** der letzten 7 Tage (`AIOS/History/YYYY-MM-DD Daily Log.md`)
-- **Daily Briefs** der letzten 7 Tage — speziell die `User:` annotations und `{action markers}`
-- **Active Projects** (`Efforts/Projects/Active/`) mit ihrem Last-Modified-Datum
-- **Open commitments** aus prior Briefs
+- **Daily notes** for the last 7 days (`Calendar/Days/YYYY-MM-DD.md`)
+- **Daily logs** for the last 7 days (`AIOS/History/YYYY-MM-DD Daily Log.md`)
+- **Daily briefs** for the last 7 days — especially the `User:` annotations and `{action markers}`
+- **Active projects** (`Efforts/Projects/Active/`) with their last-modified date
+- **Open commitments** from prior briefs
 
 ## Output
 
-`Calendar/Reviews/YYYY-MM-DD Weekly Review.md` — eine Note, kein Email, kein
-externer Speicher. Bleibt im Vault, ist verlinkt mit den Daily-Notes.
+`Calendar/Reviews/YYYY-MM-DD Weekly Review.md` — a note, not an email, not an
+external store. Lives in the vault, linked to the daily notes.
 
 ## Structure
 
 ```markdown
 ---
 up: ["[[Calendar/Reviews]]"]
-period: YYYY-MM-DD bis YYYY-MM-DD
+period: YYYY-MM-DD to YYYY-MM-DD
 created: YYYY-MM-DD
 ---
 
-# Weekly Review — KW XX
+# Weekly Review — week XX
 
-## 🎯 Was passiert ist
-- [Sektion fuer Projekte mit Bewegung]
-- [Sektion fuer Mensch-Events]
+## 🎯 What happened
+- [section for projects with movement]
+- [section for human events]
 
-## ✅ Was erledigt wurde
-- Konkrete Closures aus Daily Logs, max 7-10 Items
+## ✅ What got closed
+- Concrete closures from daily logs, max 7-10 items
 
-## ⏸ Was offen geblieben ist
-- Open commitments aus prior Briefs ohne Closure
-- Pflicht: jeder Punkt mit *„was ist der Naechste Schritt"*
+## ⏸ What stayed open
+- Open commitments from prior briefs without closure
+- Required: every item with a *"what's the next step"*
 
-## 🔍 Patterns die ich sehe
-- 2-3 Beobachtungen ueber die Woche
-- Energie, Mood, Themen-Wiederkehr
+## 🔍 Patterns I see
+- 2-3 observations across the week
+- Energy, mood, recurring themes
 
-## 🧭 Naechste Woche
-- 3-5 Fokuspunkte
-- Pflicht: jeder mit erstem Schritt + Tag
+## 🧭 Next week
+- 3-5 focus points
+- Required: each one with a first step + a day
 
 ## Footer
 *Generated YYYY-MM-DD by anker-mini weekly-review skill.*
@@ -77,38 +76,39 @@ created: YYYY-MM-DD
 
 ## Rules
 
-- **Daten aus Vault, nicht Memory.** Nie fabrizieren, nie aus generischen Mustern erfinden.
-- **Quote der User-Annotations.** *„User: ..."* Bullets aus den Daily Briefs wortwoertlich erhalten.
-- **Action-Markers tracken.** Wenn `{schedule X for Tuesday}` in einem Brief stand und nicht erledigt wurde → in „Was offen geblieben ist".
-- **Patterns ehrlich.** *„Du hast 3 Briefe in Folge geschrieben dass du den Sport-Block einplanen willst und es nicht gemacht"* gehoert dazu.
-- **Keine Beschoenigung.** Wenn die Woche dunkel war, sag es. Kein toxischer Optimismus.
+- **Data from the vault, not from memory.** Never fabricate, never infer from generic patterns.
+- **Quote user annotations.** `User: ...` bullets from daily briefs preserved verbatim.
+- **Track action markers.** If `{schedule X for Tuesday}` was in a brief and didn't get done — it belongs under "What stayed open".
+- **Pattern honesty.** *"You wrote three briefs in a row saying you wanted to schedule the workout block and didn't"* belongs here.
+- **No sugar-coating.** If the week was dark, say so. No toxic optimism.
 
 ## Voice
 
-- Zweite Person, nuechtern, freundlich-direkt.
-- Keine Coach-Sprache („du schaffst das"). Nur Beobachtung + Vorschlag.
+- Second person, sober, direct-friendly.
+- No coach-speak ("you've got this"). Observation + suggestion only.
 
-## Edge Cases
+## Edge cases
 
-- **Keine Daily Notes vorhanden:** sag „kein PKM-Material gefunden" + biete an, statt Review eine offene Frage-Liste zu schreiben.
-- **Daily Brief existiert aber leer:** als „inhaltlich leer" markieren, nicht als „nichts passiert".
-- **Erster Lauf (keine prior reviews):** keine Vergleichs-Sektion, einfach was die Woche zeigte.
+- **No daily notes available:** say "no PKM material found" + offer to write an open-questions list instead of a review.
+- **Daily brief exists but is empty:** mark it as "no content", not as "nothing happened".
+- **First run (no prior reviews):** no comparison section, just what the week showed.
 
-## Aktivierung
+## Activation
 
-Manuell:
+Manual:
 ```
 /run weekly-review
 ```
 
-Scheduled (jeden Sonntag 18:00):
+Scheduled (every Sunday 18:00):
 ```
 /schedule weekly-review 18:00 so
 ```
 
-Oder direkt aus crontab/launchd nach erstem `/schedule`-Lauf.
+Or by editing the skill file directly and adding `anker_cron: "18:00 so"` to
+the frontmatter (SSOT — the bot will pick it up on the next reconcile).
 
 ---
 
-*Modelliert nach den Closing-Rituals aus LYT (Wochenende-MOC) und der
-Daily-Trident-Logik (Mensch schreibt, AI fasst zusammen).*
+*Modeled after closing rituals in LYT and the daily-trident logic (human writes,
+AI summarizes).*

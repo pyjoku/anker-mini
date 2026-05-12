@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# install_bot.sh — installiert den anker-mini Telegram-Bot als macOS LaunchAgent.
-# Idempotent — laeuft beliebig oft.
+# install_bot.sh — installs the anker-mini Telegram bot as a macOS LaunchAgent.
+# Idempotent — safe to run repeatedly.
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,7 +8,7 @@ LABEL="com.anker.mini"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
 if [[ ! -f "$PROJECT_DIR/.env" ]]; then
-  echo "FEHLER: $PROJECT_DIR/.env fehlt. Lege es aus .env.example an."
+  echo "ERROR: $PROJECT_DIR/.env is missing. Create it from .env.example."
   exit 1
 fi
 
@@ -16,11 +16,11 @@ fi
 if [[ -d "$PROJECT_DIR/.venv" ]]; then
   PY="$PROJECT_DIR/.venv/bin/python"
 elif command -v uv >/dev/null 2>&1; then
-  echo "Erstelle uv venv …"
+  echo "Creating uv venv …"
   (cd "$PROJECT_DIR" && uv sync)
   PY="$PROJECT_DIR/.venv/bin/python"
 else
-  echo "FEHLER: weder .venv noch uv vorhanden. Installiere uv (https://docs.astral.sh/uv) oder lege ein .venv an."
+  echo "ERROR: neither .venv nor uv available. Install uv (https://docs.astral.sh/uv) or create a .venv yourself."
   exit 1
 fi
 
@@ -60,15 +60,15 @@ cat > "$PLIST" <<EOF
 EOF
 
 UID_NUM="$(id -u)"
-echo "Bootout (falls geladen) …"
+echo "Bootout (if already loaded) …"
 launchctl bootout "gui/$UID_NUM" "$PLIST" 2>/dev/null || true
 echo "Bootstrap …"
 launchctl bootstrap "gui/$UID_NUM" "$PLIST"
 
 echo ""
-echo "✅ anker-mini Bot installiert."
+echo "✅ anker-mini bot installed."
 echo "   Plist: $PLIST"
 echo "   Log:   $LOG_DIR/bot.log"
 echo ""
-echo "Status pruefen: launchctl print gui/$UID_NUM/$LABEL"
-echo "Stoppen:        launchctl bootout gui/$UID_NUM $PLIST"
+echo "Check status: launchctl print gui/$UID_NUM/$LABEL"
+echo "Stop:         launchctl bootout gui/$UID_NUM $PLIST"

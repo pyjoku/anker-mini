@@ -35,7 +35,7 @@ from pathlib import Path
 try:
     import rumps
 except ImportError:
-    print("FEHLER: rumps fehlt. Installiere via `uv sync --extra mac`.", file=sys.stderr)
+    print("ERROR: rumps is missing. Install via `uv sync --extra mac`.", file=sys.stderr)
     sys.exit(1)
 
 from . import config, scheduler, skill_runner

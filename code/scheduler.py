@@ -295,7 +295,7 @@ def _install(s: Schedule) -> None:
         _install_cron(s)
     else:
         raise NotImplementedError(
-            f"Scheduling auf {system} ist nicht unterstuetzt. Aktuell: Darwin (macOS) + Linux."
+            f"Scheduling on {system} is not supported. Currently supported: Darwin (macOS) + Linux."
         )
 
 
@@ -306,7 +306,7 @@ def _uninstall(s: Schedule) -> None:
     elif system == "Linux":
         _uninstall_cron(s)
     else:
-        raise NotImplementedError(f"Scheduling auf {system} nicht unterstuetzt.")
+        raise NotImplementedError(f"Scheduling on {system} not supported.")
 
 
 # --- macOS (launchd) ---
@@ -424,12 +424,12 @@ def _ai_normalize_spec(natural_text: str) -> str:
             timeout=30,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-        raise ValueError(f"AI-Normalisierung fehlgeschlagen: {e}")
+        raise ValueError(f"AI normalization failed: {e}")
     if result.returncode != 0:
-        raise ValueError(f"AI-Normalisierung fehlgeschlagen (exit {result.returncode})")
+        raise ValueError(f"AI normalization failed (exit {result.returncode})")
     line = result.stdout.strip().split("\n")[-1].strip().strip("`").strip('"').strip("'")
     if not line:
-        raise ValueError("AI lieferte leere Antwort")
+        raise ValueError("AI returned an empty response")
     # Validate it parses
     parse_schedule_spec(line)
     return line
@@ -439,7 +439,7 @@ def parse_schedule_spec(spec: str) -> tuple[int, int, list[int]]:
     """Parse '07:30 mo-fr', '05:55 daily', '14:00 sa,so' into (hour, minute, weekdays)."""
     parts = spec.strip().lower().split(maxsplit=1)
     if not parts:
-        raise ValueError("leerer Schedule-Spec")
+        raise ValueError("empty schedule spec")
     time_part = parts[0]
     days_part = parts[1] if len(parts) > 1 else "daily"
     if ":" not in time_part:
@@ -447,7 +447,7 @@ def parse_schedule_spec(spec: str) -> tuple[int, int, list[int]]:
     h_str, m_str = time_part.split(":", 1)
     hour, minute = int(h_str), int(m_str)
     if not (0 <= hour < 24 and 0 <= minute < 60):
-        raise ValueError(f"ungueltige Zeit: {time_part}")
+        raise ValueError(f"invalid time: {time_part}")
     weekdays: list[int] = []
     if days_part in ("daily", "every", "*", ""):
         weekdays = []
@@ -456,12 +456,12 @@ def parse_schedule_spec(spec: str) -> tuple[int, int, list[int]]:
         start = WEEKDAY_NAMES.get(start_str.strip())
         end = WEEKDAY_NAMES.get(end_str.strip())
         if start is None or end is None:
-            raise ValueError(f"unbekannter Wochentag in: {days_part}")
+            raise ValueError(f"unknown weekday in: {days_part}")
         weekdays = list(range(start, end + 1))
     else:
         for token in days_part.replace(" ", "").split(","):
             wd = WEEKDAY_NAMES.get(token)
             if wd is None:
-                raise ValueError(f"unbekannter Wochentag: {token}")
+                raise ValueError(f"unknown weekday: {token}")
             weekdays.append(wd)
     return hour, minute, sorted(set(weekdays))

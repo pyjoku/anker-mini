@@ -1,45 +1,50 @@
 # Examples
 
-Vorgefertigte Skill-Files, die du nach `~/.claude/skills/` oder in deinen
-Vault-Skills-Ordner kopieren kannst.
+Pre-built skill files you can drop into `~/.claude/skills/` or your
+vault's skill folder.
 
-| File | Zweck | Aktivierung |
+| File | Purpose | Activation |
 |---|---|---|
-| `daily-brief.md` | Morgendlicher Tagesbrief mit Kalender + Mails | `/schedule daily-brief 05:55 mo-fr` |
-| `weekly-review.md` | Sonntag-Abend Wochenrueckblick aus Daily Notes | `/schedule weekly-review 18:00 so` |
+| `daily-brief.md` | Morning daily brief with calendar + mail | `/schedule daily-brief 05:55 mo-fr` |
+| `weekly-review.md` | Sunday-evening weekly review from daily notes | `/schedule weekly-review 18:00 so` |
 
-## Installation
+## Install
 
 ```bash
-# Kopiere ins User-Skills-Verzeichnis
+# Copy into your user skill directory
 cp examples/daily-brief.md ~/.claude/skills/
 
-# Oder in den Vault (wenn du dort deine Skills hast):
+# Or into your vault (if that's where your skills live):
 cp examples/daily-brief.md "~/path/to/your/vault/AIOS/Skills/"
 ```
 
-Stell sicher dass `SKILL_PATHS` in deiner `.env` den entsprechenden Ordner enthaelt,
-dann erscheint der Skill in `/skills` und kann ueber `/schedule` automatisiert werden.
+Make sure `SKILL_PATHS` in your `.env` includes that folder. The skill will
+then show up in `/skills` and can be scheduled via `/schedule`.
 
-## Eigene Skills bauen
+## Building your own skills
 
-Minimum-Frontmatter fuer einen anker-mini-kompatiblen Skill:
+Minimum frontmatter for an anker-mini-compatible skill:
 
 ```yaml
 ---
 name: my-skill
-description: Was es tut (eine Zeile).
+description: What it does (one line).
 triggers:
-  - mein trigger
-  - alternative formulierung
+  - my trigger phrase
+  - alternative phrasing
+anker_cron: "07:00 daily"   # optional — adds a recurring schedule
 ---
 
-# Skill-Inhalt ab hier ...
+# Skill body starts here ...
 ```
 
-Der erste `triggers:`-Eintrag wird zum Default-Prompt fuer `claude -p`. Du kannst
-beim `/run` aber auch einen anderen Prompt mitgeben:
+The first `triggers:` entry becomes the default prompt passed to `claude -p`
+when the skill is run. You can also override it on `/run`:
 
 ```
-/run my-skill mit anderem prompt-text
+/run my-skill use this prompt text instead
 ```
+
+Plain-text Telegram messages to the bot are also scanned for trigger phrases
+— if a phrase from any skill appears in the message, that skill is invoked
+with the full message as the prompt.

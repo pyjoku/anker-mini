@@ -1,98 +1,106 @@
 # anker-mini — Demo Walkthrough
 
-5-Minuten-Demo, geeignet zum Vorzeigen (z.B. an Nick Milo, andere LYAI-Pilot-Tester,
-oder AI-Operator-Bootcamp-Teilnehmer).
+A 5-minute demo suitable for showing to other AI-Operator / AIOS users
+(LYAI pilot testers, AI Operator Bootcamp attendees, anyone who wants a
+local skill scheduler).
 
-## Was du zeigst
+## What you're showing
 
-Eine schlanke Owner-Pfad-Alternative zu Cowork-basierten AIOS-Stacks:
-- Markdown-Skills (selber Pattern wie LYAI AIOS)
-- Schedule via `launchctl` — Cron im File-System, kein Cloud-State
-- `claude -p` als Skill-Executor — funktioniert ueberall wo Claude Code installiert ist
-- Keine externe Datenbank, keine GraphRAG, keine Frontend-Abhaengigkeit
-- ~700 Zeilen Python total
+A lean owner-path alternative to cloud-hosted AIOS stacks:
+- Markdown skills (same frontmatter pattern as e.g. Nick Milo's AIOS)
+- Scheduling via `launchctl` — cron in the filesystem, no cloud state
+- `claude -p` as the skill executor — works anywhere Claude Code is installed
+- No external database, no GraphRAG, no frontend dependency
+- ~950 lines of Python total
 
-## Setup in 90 Sekunden
+## 90-second setup
 
 ```bash
 git clone https://github.com/pyjoku/anker-mini ~/projects/anker-mini
 cd ~/projects/anker-mini
 cp .env.example .env
-$EDITOR .env  # TELEGRAM_BOT_TOKEN, SKILL_PATHS einsetzen
+$EDITOR .env  # set TELEGRAM_BOT_TOKEN, SKILL_PATHS
 uv sync
 ./scripts/install_bot.sh
 ```
 
-Der Bot laeuft jetzt als macOS LaunchAgent (`com.anker.mini`). Logs in
+The bot now runs as a macOS LaunchAgent (`com.anker.mini`). Logs in
 `~/Library/Logs/anker-mini/bot.log`.
 
-## Telegram-Walkthrough
+## Telegram walkthrough
 
-**1. Status pruefen:**
+**1. Status check:**
 ```
 You: /start
 Bot: anker-mini online.
-     Skills entdeckt: 15
-     Aktive Schedules: 0
-     Befehle: /skills /run /schedule /schedules /unschedule
+     Skills discovered: 15
+     Active schedules: 0
+     Commands: /skills /run /schedule /schedules /unschedule
 ```
 
-**2. Skills auflisten:**
+**2. List skills:**
 ```
 You: /skills
-Bot: Verfuegbare Skills:
-     • daily-brief — Tagesbrief mit Kalender + Mails
-     • pre-planner — Zerlegt eine Aktivitaet in Zeitbloecke ...
-     • anker-wartung
-     ... (weitere)
+Bot: Available skills:
+     • daily-brief — daily brief with calendar + mail
+     • pre-planner — break an activity into time blocks ...
+     • weekly-review
+     ... (more)
 ```
 
-**3. Skill spontan ausfuehren:**
+**3. Run a skill ad-hoc:**
 ```
-You: /run pre-planner wann muss ich los zum Zahnarzt 14:30 in Lindau
-Bot: ⏳ Starte pre-planner …
-Bot: pre-planner — ✅ erledigt
+You: /run pre-planner when do I have to leave for the dentist at 14:30 in Lindau
+Bot: ⏳ Starting pre-planner …
+Bot: pre-planner — ✅ done
 ```
-(Im Hintergrund: `claude -p "wann muss ich los zum Zahnarzt 14:30 in Lindau"`
-wird aus dem konfigurierten Working Directory aufgerufen, Output in
+(Behind the scenes: `claude -p "when do I have to leave for the dentist at 14:30 in Lindau"`
+is invoked from the configured working directory; output goes to
 `~/Library/Logs/anker-mini/pre-planner.log`.)
 
-**4. Schedule preview (sicher):**
+**4. Preview a schedule (safe — no install):**
 ```
 You: /preview daily-brief 05:55 mo-fr
 Bot: ```xml
      <?xml version="1.0" ...
-     ... komplette plist die installiert wuerde ...
+     ... full plist that would be installed ...
      ```
 ```
 
-**5. Schedule installieren:**
+**5. Install a schedule:**
 ```
 You: /schedule daily-brief 05:55 mo-fr
-Bot: ✅ Schedule angelegt:
-       Skill: daily-brief
-       Zeit:  05:55
-       Tage:  Mo,Di,Mi,Do,Fr
-       Id:    a3f7e2c1
+Bot: ✅ anker_cron set in daily-brief.md: 05:55 mo-fr
+     Reconcile: +1 ~0 -0
 ```
 
-Im File-System ist jetzt eine echte launchd-plist:
+In the filesystem you now have a real launchd plist:
 `~/Library/LaunchAgents/com.anker.skill-daily-brief-a3f7e2c1.plist`.
-Apple's launchd uebernimmt von hier — kein eigener Scheduler-Daemon noetig.
+Apple's launchd takes over from here — no scheduler daemon of our own.
 
-**6. Schedule-Log anschauen (nach erster Ausfuehrung):**
+**6. View the schedule's log (after first run):**
 ```
 You: /logs daily-brief 20
-Bot: daily-brief letzte 20 Zeilen:
+Bot: daily-brief last 20 lines:
      === daily-brief @ 2026-05-12T05:55:01 ===
      prompt: daily brief
      ... claude -p output ...
      === exit 0 ===
 ```
 
-## CLI als Alternative (ohne Telegram)
+## Natural-language scheduling
 
-Falls Telegram nicht eingerichtet ist:
+`/schedule` accepts free-text descriptions and falls back to an AI normalizer
+(`claude -p` with a strict format prompt) if the strict parser doesn't recognize
+the input:
+
+```
+You: /schedule weekly-review every Sunday at 6pm
+Bot: AI normalized: 'every Sunday at 6pm' → 18:00 so
+     ✅ anker_cron set in weekly-review.md: 18:00 so
+```
+
+## CLI alternative (no Telegram needed)
 
 ```bash
 anker-mini-cli skills
@@ -101,36 +109,47 @@ anker-mini-cli schedule daily-brief "05:55 mo-fr"
 anker-mini-cli schedules
 anker-mini-cli unschedule a3f7e2c1
 anker-mini-cli preview daily-brief "05:55 mo-fr"
+anker-mini-cli verify-env
 ```
 
-## Was anker-mini bewusst NICHT macht
+## macOS menubar (optional)
 
-- **Kein Cloud-State.** Schedules leben in `data/schedules.json` + macOS launchd. Nichts in Anthropic-Workspaces, nichts in fremder DB.
-- **Keine Memory-Schicht.** anker-mini fuehrt nur aus; das Skill (oder Claude Code dahinter) schreibt selbst in den Vault. Trennung von Concerns.
-- **Keine eigene LLM-Anbindung.** `claude -p` ist die Bruecke — bring your own Claude Code. Wer einen anderen Stack will: ein Drei-Zeilen-Wrapper.
-- **Keine Skill-Discovery-Magie.** Plain `glob *.md` ueber konfigurierte Pfade — du siehst genau was er findet.
-- **Kein Frontend.** Telegram + CLI reichen. Wer ein Web-UI will: forken oder eigenes anker-mini-web bauen.
+```bash
+uv sync --extra mac
+anker-mini-menu
+```
 
-## Vergleich zum LYAI-AIOS-Pattern
+Click ⚓ in the menu bar → Skills, Sources, Schedules, Vault, Bot — everything
+in one place, native folder pickers, native input dialogs.
 
-| | LYAI AIOS (Cowork) | anker-mini |
+## What anker-mini deliberately doesn't do
+
+- **No cloud state.** Schedules live in skill `.md` files + macOS launchd. Nothing in an Anthropic workspace, nothing in a third-party DB.
+- **No memory layer.** anker-mini only executes — the skill (or Claude Code beneath it) is responsible for writing to the vault. Separation of concerns.
+- **No own LLM binding.** `claude -p` is the bridge. Bring your own Claude Code. If you want a different stack: a three-line wrapper.
+- **No skill-discovery magic.** Plain `glob *.md` over configured paths — you see exactly what it finds.
+- **No frontend.** Telegram + CLI + menubar are enough. Want a web UI? Fork it or build `anker-mini-web`.
+
+## Comparison to cloud-hosted AIOS
+
+| | Cloud AIOS (e.g. LYAI on Cowork) | anker-mini |
 |---|---|---|
-| Skill-Format | Markdown mit Frontmatter | gleiches Pattern, kompatibel |
-| Skill-Storage | Vault | Vault + optional `~/.claude/skills/` |
-| Scheduling | Cowork-UI (cloud) | launchd plist (lokal) |
-| Memory-Layer | Cowork-intern | gar nicht — Skill+Vault sind verantwortlich |
-| Bootstrap | `me-builder` Skill (autobuilder-dossier) | (geplant — derselbe Pattern, lokaler Lauf) |
-| Vault-Schreibinstanz | Cowork raw File-Write | empfohlen: Obsidian CLI fuer Konsistenz |
-| LLM | Anthropic-only via Cowork | beliebig via `claude` CLI Backend-Switch |
+| Skill format | Markdown with frontmatter | same pattern, compatible |
+| Skill storage | Vault | vault + optional `~/.claude/skills/` |
+| Scheduling | Cowork UI (cloud) | launchd plist / crontab (local) |
+| Memory layer | Cowork-internal | none — skill + vault are responsible |
+| Bootstrap | `me-builder` skill | (planned — same pattern, runs locally) |
+| Vault write surface | Cowork raw file write | recommended: Obsidian CLI for consistency |
+| LLM | Anthropic-only via Cowork | swappable via the `claude` CLI backend |
 
-## Strategischer Punkt
+## The strategic point
 
-**Owner-Pfad statt Cowork-Convenience.** Bei Cowork mietest du Orchestrierung
-und Schedule — bei anker-mini gehoeren sie dir. Trade-off ist UX (kein
-Web-Frontend, Markdown-CLI-Setup statt Klick) gegen Sovereignty (kein
-Lock-in, alles lokal, alles inspizierbar).
+**Owner path instead of cloud convenience.** With a cloud AIOS you rent
+orchestration and scheduling. With anker-mini you own them. The tradeoff is UX
+(no web frontend, Markdown-CLI setup instead of a click flow) against
+sovereignty (no lock-in, everything local, everything inspectable).
 
-Wer beides will: anker-mini und Cowork koennen denselben Skill-Folder benutzen,
-weil die Frontmatter-Konvention identisch ist. Dann hast du Cowork als UI und
-anker-mini als robuste lokale Ausfuehrung — und kannst jederzeit eine Seite
-ziehen.
+You can have both: anker-mini and a cloud AIOS can share the same skill folder
+because the frontmatter convention is identical. Use the cloud product for the
+UI, anker-mini for robust local execution — and pull the plug on either at
+any time.

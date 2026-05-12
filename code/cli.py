@@ -9,6 +9,7 @@ Useful before the bot is set up, for headless servers, or for ops:
     anker-mini-cli unschedule <id-prefix>
     anker-mini-cli preview daily-brief "05:55 mo-fr"
     anker-mini-cli reinstall
+    anker-mini-cli verify-env
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from . import config, scheduler, skill_runner
 def _list_skills(_args) -> int:
     skills = skill_runner.discover_skills()
     if not skills:
-        print("Keine Skills gefunden. SKILL_PATHS pruefen.", file=sys.stderr)
+        print("No skills found. Check SKILL_PATHS.", file=sys.stderr)
         return 1
     for s in skills:
         first_line = s.description.splitlines()[0][:120] if s.description else ""
@@ -33,7 +34,7 @@ def _list_skills(_args) -> int:
 def _run(args) -> int:
     skill = skill_runner.find_skill(args.skill)
     if skill is None:
-        print(f"Skill nicht gefunden: {args.skill}", file=sys.stderr)
+        print(f"Skill not found: {args.skill}", file=sys.stderr)
         return 2
     prompt = " ".join(args.prompt) if args.prompt else None
     rc = skill_runner.run_skill(skill, prompt)
@@ -45,12 +46,12 @@ def _run(args) -> int:
 def _schedule(args) -> int:
     skill = skill_runner.find_skill(args.skill)
     if skill is None:
-        print(f"Skill nicht gefunden: {args.skill}", file=sys.stderr)
+        print(f"Skill not found: {args.skill}", file=sys.stderr)
         return 2
     try:
         hour, minute, weekdays = scheduler.parse_schedule_spec(args.spec)
     except ValueError as e:
-        print(f"Spec ungueltig: {e}", file=sys.stderr)
+        print(f"Invalid spec: {e}", file=sys.stderr)
         return 3
     sched = scheduler.add_schedule(
         skill_id=skill.id,
@@ -68,12 +69,12 @@ def _schedule(args) -> int:
 def _schedules(_args) -> int:
     items = scheduler.list_schedules()
     if not items:
-        print("(keine)")
+        print("(none)")
         return 0
     print(f"{'ID':<10}{'SKILL':<25}{'TIME':<8}{'DAYS':<14}NEXT-RUN")
     for s in items:
         days = "daily" if not s.weekdays else ",".join(str(w) for w in s.weekdays)
-        next_run = s.next_run_at().strftime("%a %d.%m %H:%M")
+        next_run = s.next_run_at().strftime("%a %d %b %H:%M")
         print(f"{s.id[:8]:<10}{s.skill_id:<25}{s.hour:02d}:{s.minute:02d}   {days:<14}{next_run}")
     return 0
 
@@ -81,21 +82,21 @@ def _schedules(_args) -> int:
 def _unschedule(args) -> int:
     removed = scheduler.remove_schedule(args.id_prefix)
     if removed is None:
-        print(f"Schedule nicht gefunden: {args.id_prefix}", file=sys.stderr)
+        print(f"Schedule not found: {args.id_prefix}", file=sys.stderr)
         return 2
-    print(f"Entfernt: {removed.id[:8]} ({removed.skill_id})")
+    print(f"Removed: {removed.id[:8]} ({removed.skill_id})")
     return 0
 
 
 def _preview(args) -> int:
     skill = skill_runner.find_skill(args.skill)
     if skill is None:
-        print(f"Skill nicht gefunden: {args.skill}", file=sys.stderr)
+        print(f"Skill not found: {args.skill}", file=sys.stderr)
         return 2
     try:
         hour, minute, weekdays = scheduler.parse_schedule_spec(args.spec)
     except ValueError as e:
-        print(f"Spec ungueltig: {e}", file=sys.stderr)
+        print(f"Invalid spec: {e}", file=sys.stderr)
         return 3
     import uuid as _uuid
     dummy = scheduler.Schedule(
@@ -122,60 +123,63 @@ def _verify_env(_args) -> int:
     import shutil
     findings: list[tuple[str, str]] = []  # (status, message), status is OK/WARN/FAIL
 
-    # ENV
-    token = config.get("TELEGRAM_BOT_TOKEN", "")
-    findings.append(("OK" if token else "FAIL", f"TELEGRAM_BOT_TOKEN: {'set' if token else 'MISSING'}"))
+    # Token
+    try:
+        token = config.bot_token()
+    except Exception:
+        token = ""
+    findings.append(("OK" if token else "FAIL", f"telegram.bot_token: {'set' if token else 'MISSING'}"))
 
     allowed = config.allowed_user_ids()
     findings.append((
         "OK" if allowed else "WARN",
-        f"TELEGRAM_ALLOWED_USERS: {len(allowed)} user(s)" + ("" if allowed else " — bot offen fuer alle"),
+        f"telegram.allowed_users: {len(allowed)} user(s)" + ("" if allowed else " — bot is open to anyone"),
     ))
 
     # Skill paths
     paths = config.skill_paths()
     if not paths:
-        findings.append(("FAIL", "SKILL_PATHS: keine Pfade konfiguriert"))
+        findings.append(("FAIL", "skills.paths: no folders configured"))
     else:
         for p in paths:
             findings.append((
                 "OK" if p.exists() else "WARN",
-                f"SKILL_PATHS entry: {p} ({'existiert' if p.exists() else 'fehlt'})",
+                f"skill path: {p} ({'exists' if p.exists() else 'missing'})",
             ))
 
     # Skills found
     skills = skill_runner.discover_skills()
     findings.append((
         "OK" if skills else "WARN",
-        f"Gefundene Skills: {len(skills)}",
+        f"Skills discovered: {len(skills)}",
     ))
 
     # claude CLI present
     claude_path = shutil.which(config.claude_bin())
     findings.append((
         "OK" if claude_path else "FAIL",
-        f"claude CLI: {claude_path or 'NICHT GEFUNDEN — pruefe CLAUDE_BIN'}",
+        f"claude CLI: {claude_path or 'NOT FOUND — check claude.bin'}",
     ))
 
-    # CLAUDE_CWD existiert?
+    # CLAUDE_CWD exists?
     cwd = config.claude_cwd()
     findings.append((
         "OK" if cwd.exists() else "FAIL",
-        f"CLAUDE_CWD: {cwd} ({'existiert' if cwd.exists() else 'FEHLT'})",
+        f"claude.cwd: {cwd} ({'exists' if cwd.exists() else 'MISSING'})",
     ))
 
     # Platform support
     system = platform.system()
     if system == "Darwin":
-        findings.append(("OK", f"Plattform: {system} (launchd-Backend)"))
+        findings.append(("OK", f"Platform: {system} (launchd backend)"))
         if not shutil.which("launchctl"):
-            findings.append(("FAIL", "launchctl: NICHT GEFUNDEN"))
+            findings.append(("FAIL", "launchctl: NOT FOUND"))
     elif system == "Linux":
-        findings.append(("OK", f"Plattform: {system} (cron-Backend)"))
+        findings.append(("OK", f"Platform: {system} (cron backend)"))
         if not shutil.which("crontab"):
-            findings.append(("FAIL", "crontab: NICHT GEFUNDEN"))
+            findings.append(("FAIL", "crontab: NOT FOUND"))
     else:
-        findings.append(("WARN", f"Plattform: {system} (kein Scheduling-Backend, nur /run via CLI)"))
+        findings.append(("WARN", f"Platform: {system} (no scheduling backend — only /run via CLI)"))
 
     # Log dir writable?
     log_dir = config.log_dir()
@@ -183,13 +187,13 @@ def _verify_env(_args) -> int:
     try:
         test_file.write_text("ok", encoding="utf-8")
         test_file.unlink()
-        findings.append(("OK", f"LOG_DIR schreibbar: {log_dir}"))
+        findings.append(("OK", f"Log dir writable: {log_dir}"))
     except OSError as e:
-        findings.append(("FAIL", f"LOG_DIR nicht schreibbar: {log_dir} — {e}"))
+        findings.append(("FAIL", f"Log dir not writable: {log_dir} — {e}"))
 
     # Schedules state
     state_file = config.schedules_file()
-    findings.append(("OK", f"Schedules-State: {state_file} ({'existiert' if state_file.exists() else 'wird beim ersten Schedule angelegt'})"))
+    findings.append(("OK", f"Schedules state: {state_file} ({'exists' if state_file.exists() else 'will be created on first schedule'})"))
 
     # Output
     sym = {"OK": "✓", "WARN": "!", "FAIL": "✗"}
@@ -200,9 +204,9 @@ def _verify_env(_args) -> int:
             fail_count += 1
     print()
     if fail_count:
-        print(f"❌ {fail_count} FAIL(s). Bitte korrigieren bevor du den Bot startest.")
+        print(f"❌ {fail_count} FAIL(s). Fix these before starting the bot.")
         return 1
-    print("✅ Setup ok.")
+    print("✅ Setup OK.")
     return 0
 
 
@@ -236,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("reinstall", help="re-install all plists from schedules.json").set_defaults(func=_reinstall)
 
-    sub.add_parser("verify-env", help="sanity-check .env and runtime").set_defaults(func=_verify_env)
+    sub.add_parser("verify-env", help="sanity-check config and runtime").set_defaults(func=_verify_env)
 
     args = parser.parse_args(argv)
     return args.func(args)
