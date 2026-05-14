@@ -1,0 +1,35 @@
+# anker-mini — 24/7 Obsidian automation
+#
+# Quickstart (full setup walkthrough is in docker/README.md):
+#
+#   cp .env.example .env
+#   $EDITOR .env                          # set VAULT_NAME, VAULT_HOST_PATH, TZ
+#   docker compose build
+#   docker compose run --rm anker-mini ob login
+#   docker compose run --rm anker-mini ob sync-setup --vault "$VAULT_NAME" --path /vault --device-name "$(hostname)"
+#   docker compose up -d
+#
+# Then configure the Telegram bot + skill paths via the inside-container CLI.
+
+services:
+  anker-mini:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: anker-mini
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Zurich}
+      VAULT_NAME: ${VAULT_NAME:-}
+    volumes:
+      # The vault — bind-mount from host so you can also browse it via Finder.
+      # Alternative: use a named docker volume for stricter isolation.
+      - ${VAULT_HOST_PATH:-./vault-data}:/vault
+      # Persistent state — auth tokens, schedules, logs.
+      - state:/state
+    # The container does not expose any ports — Telegram polls outbound only.
+    # Nothing inbound is needed.
+
+volumes:
+  state:
+    driver: local
